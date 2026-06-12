@@ -55,6 +55,7 @@ export default function NuevoCierrePage() {
   async function crear() {
     setLoading(true); setError(null);
     try {
+      const respUuid = responsable || null;
       const { data: { user } } = await supabase.auth.getUser();
       const ms = mes === 12 ? 1 : mes + 1;
       const ay = mes === 12 ? anio + 1 : anio;
@@ -66,7 +67,7 @@ export default function NuevoCierrePage() {
           mes, anio,
           fecha_estimada_cierre: finMesSig,
           estado: 'pendiente',
-          responsable_principal: responsable || null,
+          responsable_principal: respUuid,
           created_by: user?.id,
         })
         .select('id')
@@ -79,7 +80,7 @@ export default function NuevoCierrePage() {
         orden: t.orden,
         nombre: t.nombre,
         descripcion: t.descripcion,
-        responsable_id: t.responsable_default ?? responsable ?? null,
+        responsable_id: t.responsable_default ?? respUuid,
         fecha_estimada: fechaObjetivo(t.dia_objetivo_1),
         fecha_estimada_2: fechaObjetivo(t.dia_objetivo_2),
         estado: 'pendiente',
