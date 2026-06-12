@@ -1,0 +1,237 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =============== PALETAS =============== */
+/* Cada paleta define variables RGB para que Tailwind genere clases con opacidad */
+
+/* 1. Azul corporativo / gris claro (default) */
+:root,
+:root.theme-azul.light {
+  --bg: 245 247 250;
+  --surface: 255 255 255;
+  --surface-2: 247 249 252;
+  --border: 226 232 240;
+  --text: 17 24 39;
+  --muted: 100 116 139;
+  --primary: 37 99 235;       /* blue-600 */
+  --primary-fg: 255 255 255;
+  --accent: 14 165 233;
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --danger: 220 38 38;
+}
+:root.theme-azul.dark {
+  --bg: 15 23 42;
+  --surface: 30 41 59;
+  --surface-2: 23 32 49;
+  --border: 51 65 85;
+  --text: 241 245 249;
+  --muted: 148 163 184;
+  --primary: 96 165 250;
+  --primary-fg: 15 23 42;
+  --accent: 56 189 248;
+  --success: 74 222 128;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+}
+
+/* 2. Verde petróleo / beige */
+:root.theme-petroleo.light {
+  --bg: 250 247 240;
+  --surface: 255 252 246;
+  --surface-2: 245 240 230;
+  --border: 230 222 207;
+  --text: 28 50 49;
+  --muted: 109 124 122;
+  --primary: 15 118 110;      /* teal-700 */
+  --primary-fg: 255 255 255;
+  --accent: 13 148 136;
+  --success: 16 122 109;
+  --warning: 217 119 6;
+  --danger: 190 18 60;
+}
+:root.theme-petroleo.dark {
+  --bg: 11 32 31;
+  --surface: 18 47 46;
+  --surface-2: 14 39 38;
+  --border: 27 65 64;
+  --text: 233 226 211;
+  --muted: 149 161 159;
+  --primary: 45 212 191;
+  --primary-fg: 5 22 21;
+  --accent: 94 234 212;
+  --success: 74 222 128;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+}
+
+/* 3. Gris oscuro / azul eléctrico */
+:root.theme-electrico.light {
+  --bg: 244 244 245;
+  --surface: 255 255 255;
+  --surface-2: 250 250 252;
+  --border: 228 228 231;
+  --text: 24 24 27;
+  --muted: 113 113 122;
+  --primary: 59 130 246;
+  --primary-fg: 255 255 255;
+  --accent: 99 102 241;
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --danger: 220 38 38;
+}
+:root.theme-electrico.dark {
+  --bg: 9 9 11;
+  --surface: 24 24 27;
+  --surface-2: 17 17 20;
+  --border: 39 39 42;
+  --text: 244 244 245;
+  --muted: 161 161 170;
+  --primary: 96 165 250;
+  --primary-fg: 9 9 11;
+  --accent: 129 140 248;
+  --success: 74 222 128;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+}
+
+/* 4. Negro / gris / blanco minimalista */
+:root.theme-minimal.light {
+  --bg: 250 250 250;
+  --surface: 255 255 255;
+  --surface-2: 245 245 245;
+  --border: 229 229 229;
+  --text: 23 23 23;
+  --muted: 115 115 115;
+  --primary: 23 23 23;
+  --primary-fg: 255 255 255;
+  --accent: 64 64 64;
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --danger: 220 38 38;
+}
+:root.theme-minimal.dark {
+  --bg: 10 10 10;
+  --surface: 23 23 23;
+  --surface-2: 18 18 18;
+  --border: 38 38 38;
+  --text: 250 250 250;
+  --muted: 163 163 163;
+  --primary: 245 245 245;
+  --primary-fg: 23 23 23;
+  --accent: 212 212 212;
+  --success: 74 222 128;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+}
+
+/* 5. Bordó / crema */
+:root.theme-bordo.light {
+  --bg: 252 247 243;
+  --surface: 255 252 248;
+  --surface-2: 247 240 232;
+  --border: 232 220 207;
+  --text: 56 25 25;
+  --muted: 130 96 96;
+  --primary: 136 19 55;       /* burgundy */
+  --primary-fg: 255 255 255;
+  --accent: 159 41 71;
+  --success: 22 122 64;
+  --warning: 184 92 15;
+  --danger: 159 18 57;
+}
+:root.theme-bordo.dark {
+  --bg: 28 12 12;
+  --surface: 41 19 19;
+  --surface-2: 33 15 15;
+  --border: 64 30 30;
+  --text: 246 232 217;
+  --muted: 168 142 142;
+  --primary: 244 114 132;
+  --primary-fg: 41 19 19;
+  --accent: 251 113 133;
+  --success: 74 222 128;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+}
+
+/* 6. Verde oliva / gris claro */
+:root.theme-oliva.light {
+  --bg: 247 247 242;
+  --surface: 252 252 248;
+  --surface-2: 242 242 234;
+  --border: 220 222 208;
+  --text: 38 41 25;
+  --muted: 109 117 96;
+  --primary: 101 117 36;       /* olive */
+  --primary-fg: 255 255 255;
+  --accent: 132 146 64;
+  --success: 22 163 74;
+  --warning: 217 119 6;
+  --danger: 220 38 38;
+}
+:root.theme-oliva.dark {
+  --bg: 18 22 12;
+  --surface: 30 34 22;
+  --surface-2: 24 28 17;
+  --border: 53 59 38;
+  --text: 234 234 219;
+  --muted: 156 163 132;
+  --primary: 190 211 116;
+  --primary-fg: 28 32 12;
+  --accent: 168 188 99;
+  --success: 134 199 96;
+  --warning: 251 191 36;
+  --danger: 248 113 113;
+}
+
+/* =============== BASE =============== */
+html, body {
+  background-color: rgb(var(--bg));
+  color: rgb(var(--text));
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+}
+
+* { border-color: rgb(var(--border)); }
+
+/* Scrollbars sutiles */
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-thumb { background: rgb(var(--border)); border-radius: 4px; }
+*::-webkit-scrollbar-track { background: transparent; }
+
+/* Inputs por defecto */
+.input {
+  @apply w-full px-3 py-2 rounded border bg-surface text-text border-border outline-none transition;
+}
+.input:focus { @apply ring-2 ring-primary/30 border-primary; }
+
+.btn {
+  @apply inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded text-sm font-medium transition select-none;
+}
+.btn-primary { @apply btn bg-primary text-primary-fg hover:opacity-90; }
+.btn-secondary { @apply btn bg-surface-2 text-text border border-border hover:bg-border/40; }
+.btn-ghost { @apply btn text-text hover:bg-surface-2; }
+.btn-danger { @apply btn bg-danger text-white hover:opacity-90; }
+
+.card {
+  @apply bg-surface border border-border rounded shadow-soft;
+}
+
+/* Chips de estado */
+.chip { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium; }
+.chip-pendiente { @apply chip bg-warning/15 text-warning; }
+.chip-en-proceso { @apply chip bg-accent/15 text-accent; }
+.chip-completado { @apply chip bg-success/15 text-success; }
+.chip-ok { @apply chip bg-success/15 text-success; }
+.chip-diferencia { @apply chip bg-warning/15 text-warning; }
+.chip-falta-sap { @apply chip bg-danger/15 text-danger; }
+.chip-falta-afip { @apply chip bg-accent/15 text-accent; }
+
+/* Tabla */
+.tbl { @apply w-full text-sm; }
+.tbl thead th { @apply text-left text-xs uppercase tracking-wide text-muted font-medium px-3 py-2 border-b border-border; }
+.tbl tbody td { @apply px-3 py-2 border-b border-border/60; }
+.tbl tbody tr:hover { @apply bg-surface-2; }
