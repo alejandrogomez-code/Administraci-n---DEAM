@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { ArrowLeft, Download, FileDown, RefreshCcw } from 'lucide-react';
+import { useParams, useRouter } from 'next/navigation';
+import { ArrowLeft, Download, FileDown, RefreshCcw, Trash2 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
@@ -51,6 +51,7 @@ type Result = {
 export default function IvaDetallePage() {
   const supabase = createClient();
   const params = useParams<{ id: string }>();
+  const router = useRouter();
   const id = params.id;
 
   const [control, setControl] = useState<Control | null>(null);
@@ -100,6 +101,23 @@ export default function IvaDetallePage() {
     setResults((arr) => arr.map((x) => x.id === r.id ? { ...x, observacion: obs } : x));
   }
 
+  async function eliminarControl() {
+    if (!control) return;
+    if (!confirm(`¿Eliminar el control de IVA del período ${control.periodo}?\n\nSe eliminarán también todos los resultados del cruce y los archivos originales adjuntos. No se puede deshacer.`)) return;
+    try {
+      const paths = [control.archivo_afip_url, control.archivo_sap_url].filter((p): p is string => !!p);
+      if (paths.length) {
+        const { error: errSt } = await supabase.storage.from('iva-files').remove(paths);
+        if (errSt) console.warn('No se pudieron eliminar los archivos:', errSt.message);
+      }
+      const { error } = await supabase.from('iva_controls').delete().eq('id', id);
+      if (error) throw error;
+      router.push('/contabilidad/iva');
+    } catch (err: any) {
+      alert(err.message ?? 'Error al eliminar.');
+    }
+  }
+
   async function descargarArchivo(url: string | null, nombre: string | null) {
     if (!url) return;
     const { data, error } = await supabase.storage.from('iva-files').createSignedUrl(url, 60);
@@ -145,6 +163,7 @@ export default function IvaDetallePage() {
         actions={<>
           <Link href="/contabilidad/iva" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>
           <button onClick={exportarExcel} className="btn-primary"><FileDown size={14}/> Exportar Excel</button>
+          <button onClick={eliminarControl} className="btn-ghost text-danger text-sm"><Trash2 size={14}/> Eliminar</button>
         </>}
       />
       <div className="p-6 space-y-6">
