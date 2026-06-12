@@ -14,12 +14,16 @@ type Template = {
   descripcion: string | null;
   dia_objetivo_1: number | null;
   dia_objetivo_2: number | null;
+  responsable_default: string | null;
   activo: boolean;
 };
+
+type Miembro = { id: string; nombre: string };
 
 export default function TareasModeloPage() {
   const supabase = createClient();
   const [items, setItems] = useState<Template[]>([]);
+  const [miembros, setMiembros] = useState<Miembro[]>([]);
   const [loading, setLoading] = useState(true);
   const [editing, setEditing] = useState<Template | null>(null);
 
@@ -27,6 +31,8 @@ export default function TareasModeloPage() {
     setLoading(true);
     const { data } = await supabase.from('closing_task_templates').select('*').order('orden');
     setItems((data as any) ?? []);
+    const { data: ms } = await supabase.from('team_members').select('id, nombre').eq('activo', true).order('orden').order('nombre');
+    setMiembros(ms ?? []);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -34,7 +40,8 @@ export default function TareasModeloPage() {
   function nuevo() {
     setEditing({
       id: '', orden: (items.reduce((m, x) => Math.max(m, x.orden), 0) + 1),
-      nombre: '', descripcion: '', dia_objetivo_1: null, dia_objetivo_2: null, activo: true,
+      nombre: '', descripcion: '', dia_objetivo_1: null, dia_objetivo_2: null,
+      responsable_default: null, activo: true,
     });
   }
 
@@ -47,6 +54,7 @@ export default function TareasModeloPage() {
       descripcion: editing.descripcion,
       dia_objetivo_1: editing.dia_objetivo_1,
       dia_objetivo_2: editing.dia_objetivo_2,
+      responsable_default: editing.responsable_default,
       activo: editing.activo,
     };
     if (editing.id) {
@@ -84,6 +92,7 @@ export default function TareasModeloPage() {
                 <tr>
                   <th>#</th>
                   <th>Nombre</th>
+                  <th>Responsable default</th>
                   <th>Día obj. 1</th>
                   <th>Día obj. 2</th>
                   <th>Activa</th>
@@ -91,28 +100,33 @@ export default function TareasModeloPage() {
                 </tr>
               </thead>
               <tbody>
-                {items.map((t) => (
-                  <tr key={t.id}>
-                    <td className="text-muted">{t.orden}</td>
-                    <td>
-                      <div className="font-medium text-sm">{t.nombre}</div>
-                      {t.descripcion && <div className="text-xs text-muted">{t.descripcion}</div>}
-                    </td>
-                    <td className="text-sm">{t.dia_objetivo_1 ?? '-'}</td>
-                    <td className="text-sm">{t.dia_objetivo_2 ?? '-'}</td>
-                    <td>{t.activo ? '✓' : '—'}</td>
-                    <td className="flex gap-3 text-xs">
-                      <button className="text-primary" onClick={() => setEditing(t)}>Editar</button>
-                      <button className="text-danger" onClick={() => eliminar(t)}><Trash2 size={12} className="inline"/></button>
-                    </td>
-                  </tr>
-                ))}
+                {items.map((t) => {
+                  const respNombre = miembros.find((m) => m.id === t.responsable_default)?.nombre;
+                  return (
+                    <tr key={t.id}>
+                      <td className="text-muted">{t.orden}</td>
+                      <td>
+                        <div className="font-medium text-sm">{t.nombre}</div>
+                        {t.descripcion && <div className="text-xs text-muted">{t.descripcion}</div>}
+                      </td>
+                      <td className="text-sm">{respNombre ?? <span className="text-muted">—</span>}</td>
+                      <td className="text-sm">{t.dia_objetivo_1 ?? '-'}</td>
+                      <td className="text-sm">{t.dia_objetivo_2 ?? '-'}</td>
+                      <td>{t.activo ? '✓' : '—'}</td>
+                      <td className="flex gap-3 text-xs">
+                        <button className="text-primary" onClick={() => setEditing(t)}>Editar</button>
+                        <button className="text-danger" onClick={() => eliminar(t)}><Trash2 size={12} className="inline"/></button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
         </div>
         <p className="text-xs text-muted mt-3">
           Los “días objetivo” son del mes <b>siguiente</b> al cierre (ej: día 5 = al 5to día del mes siguiente).
+          El responsable default se asigna automáticamente cuando se crea un nuevo cierre.
         </p>
       </div>
 
@@ -134,6 +148,13 @@ export default function TareasModeloPage() {
               <div>
                 <label className="text-xs text-muted">Descripción</label>
                 <textarea className="input min-h-20" value={editing.descripcion ?? ''} onChange={(e) => setEditing({ ...editing, descripcion: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs text-muted">Responsable default</label>
+                <select className="input" value={editing.responsable_default ?? ''} onChange={(e) => setEditing({ ...editing, responsable_default: e.target.value || null })}>
+                  <option value="">Sin responsable</option>
+                  {miembros.map((m) => <option key={m.id} value={m.id}>{m.nombre}</option>)}
+                </select>
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
