@@ -92,9 +92,12 @@ export default function PropuestaDetallePage() {
     const fv = prop.fecha_venta;
     const tasa = prop.tasa;
 
+    // Helper: convertir ISO yyyy-mm-dd a Date local (sin desplazamiento de zona horaria)
+    const toDate = (iso: string | null) => iso ? new Date(iso + 'T00:00:00') : null;
+
     // Hoja 1: cheques (sólo campos solicitados)
     const detalleRows = cheques.map((c) => ({
-      'Vencimiento':   c.vencimiento,
+      'Vencimiento':   toDate(c.vencimiento),
       'Asignación':    c.asignacion ?? '',
       'Importe Total': c.importe,
       'Librador':      c.librador ?? '',
@@ -105,7 +108,7 @@ export default function PropuestaDetallePage() {
     // Hoja 2: resumen
     const resumenRows = [
       { Campo: 'Nombre',                  Valor: prop.nombre },
-      { Campo: 'Fecha de venta',          Valor: fv ?? '' },
+      { Campo: 'Fecha de venta',          Valor: toDate(fv) ?? '' },
       { Campo: 'Tasa (%)',                Valor: tasa ?? '' },
       { Campo: 'Banco de operación',      Valor: prop.banco_operacion ?? '' },
       { Campo: 'Plazo Promedio (días)',   Valor: resumen.plazo_promedio ?? '' },
@@ -117,9 +120,34 @@ export default function PropuestaDetallePage() {
       { Campo: 'Notas',                   Valor: prop.notas ?? '' },
     ];
 
+    const wsDet = XLSX.utils.json_to_sheet(detalleRows);
+    // Aplicar formato dd/mm/yyyy a toda la columna Vencimiento (col 0).
+    // (json_to_sheet convierte los Date a número serial, así que aplicamos formato directamente.)
+    const refDet = wsDet['!ref'];
+    if (refDet) {
+      const range = XLSX.utils.decode_range(refDet);
+      for (let r = 1; r <= range.e.r; r++) {
+        const cell = wsDet[XLSX.utils.encode_cell({ r, c: 0 })];
+        if (cell) cell.z = 'dd/mm/yyyy';
+      }
+    }
+    // anchos de columna
+    wsDet['!cols'] = [
+      { wch: 12 }, { wch: 14 }, { wch: 16 }, { wch: 36 }, { wch: 14 }, { wch: 8 },
+    ];
+
+    const wsRes = XLSX.utils.json_to_sheet(resumenRows);
+    // Aplicar formato dd/mm/yyyy a la celda de "Fecha de venta" (columna Valor)
+    const idxFecha = resumenRows.findIndex((row) => row.Campo === 'Fecha de venta');
+    if (idxFecha !== -1) {
+      const cellFecha = wsRes[XLSX.utils.encode_cell({ r: idxFecha + 1, c: 1 })];  // +1 por la fila de header
+      if (cellFecha) cellFecha.z = 'dd/mm/yyyy';
+    }
+    wsRes['!cols'] = [{ wch: 24 }, { wch: 28 }];
+
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(detalleRows), 'Cheques');
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(resumenRows), 'Resumen');
+    XLSX.utils.book_append_sheet(wb, wsDet, 'Cheques');
+    XLSX.utils.book_append_sheet(wb, wsRes, 'Resumen');
     XLSX.writeFile(wb, `Propuesta_${prop.nombre.replace(/[^\w-]+/g, '_')}.xlsx`);
   }
 
