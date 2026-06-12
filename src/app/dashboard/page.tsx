@@ -1,15 +1,24 @@
 import Link from 'next/link';
-import { Banknote, BookOpen, FileSpreadsheet, FileText, Settings, Wallet } from 'lucide-react';
+import { Banknote, BookOpen, ExternalLink, FileSpreadsheet, FileText, Settings, Wallet, Zap } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/server';
 
 export const dynamic = 'force-dynamic';
 
+const COLOR_CLASSES: Record<string, string> = {
+  primary: 'bg-primary/10 text-primary',
+  accent:  'bg-accent/10 text-accent',
+  success: 'bg-success/10 text-success',
+  warning: 'bg-warning/10 text-warning',
+  danger:  'bg-danger/10 text-danger',
+  muted:   'bg-muted/15 text-muted',
+};
+
 const modulos = [
   { href: '/contabilidad/cierres', label: 'Cierres del mes',  desc: 'Tareas mensuales de cierre contable', icon: FileText,        color: 'bg-primary/10 text-primary' },
   { href: '/contabilidad/iva',     label: 'Control de IVA',   desc: 'Cruce ARCA vs SAP',                   icon: Wallet,          color: 'bg-accent/10 text-accent' },
-  { href: '/tesoreria',            label: 'Tesorería',        desc: 'Cuentas, pagos y flujo de caja',      icon: Banknote,        color: 'bg-warning/10 text-warning' },
+  { href: '/tesoreria/venta-cheques', label: 'Venta de cheques', desc: 'Simulador, propuestas y carga',   icon: Banknote,        color: 'bg-warning/10 text-warning' },
   { href: '/manuales',             label: 'Manuales',         desc: 'Documentación y capacitaciones',      icon: BookOpen,        color: 'bg-success/10 text-success' },
   { href: '/contabilidad',         label: 'Contabilidad',     desc: 'Acceso al módulo contable completo',  icon: FileSpreadsheet, color: 'bg-primary/10 text-primary' },
   { href: '/configuracion',        label: 'Configuración',    desc: 'Usuarios, permisos, equipo y más',    icon: Settings,        color: 'bg-muted/20 text-muted' },
@@ -24,6 +33,13 @@ export default async function DashboardPage() {
     nombre = data?.nombre ?? nombre;
   }
 
+  const { data: accesos } = await supabase
+    .from('accesos_directos')
+    .select('*')
+    .eq('activo', true)
+    .order('orden')
+    .limit(8);
+
   const { count: cierresPendientes } = await supabase
     .from('accounting_closings').select('id', { count: 'exact', head: true }).neq('estado', 'completado');
   const { count: ivaControles } = await supabase
@@ -34,42 +50,72 @@ export default async function DashboardPage() {
   return (
     <AppShell>
       <TopBar titulo={`Bienvenido, ${nombre}`} subtitulo="Panel principal" />
-      <div className="p-6 max-w-7xl">
-        <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Módulos</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {modulos.map((m) => {
-            const Icon = m.icon;
-            return (
-              <Link key={m.href} href={m.href} className="card p-5 hover:shadow-card transition group">
-                <div className={`w-10 h-10 rounded ${m.color} flex items-center justify-center mb-3 group-hover:scale-105 transition`}>
-                  <Icon size={20} />
-                </div>
-                <div className="font-medium">{m.label}</div>
-                <div className="text-xs text-muted mt-1">{m.desc}</div>
-              </Link>
-            );
-          })}
-        </div>
+      <div className="p-6 max-w-7xl space-y-8">
 
-        <h2 className="text-sm font-medium text-muted mt-8 mb-3 uppercase tracking-wide">Resumen</h2>
-        <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-          <div className="card p-5">
-            <div className="text-xs text-muted">Cierres en curso</div>
-            <div className="text-2xl font-semibold mt-1">{cierresPendientes ?? 0}</div>
+        {(accesos?.length ?? 0) > 0 && (
+          <section>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-medium text-muted uppercase tracking-wide flex items-center gap-2">
+                <Zap size={14} /> Accesos directos
+              </h2>
+              <Link className="text-xs text-primary" href="/accesos-directos">Ver todos →</Link>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {accesos!.map((a: any) => (
+                <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer"
+                  className="card p-4 hover:shadow-card transition group flex items-center gap-3">
+                  <div className={`w-10 h-10 rounded ${COLOR_CLASSES[a.color] ?? COLOR_CLASSES.primary} flex items-center justify-center shrink-0 group-hover:scale-105 transition`}>
+                    <ExternalLink size={18} />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="font-medium text-sm truncate">{a.titulo}</div>
+                    {a.descripcion && <div className="text-xs text-muted truncate">{a.descripcion}</div>}
+                  </div>
+                </a>
+              ))}
+            </div>
+          </section>
+        )}
+
+        <section>
+          <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Módulos</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {modulos.map((m) => {
+              const Icon = m.icon;
+              return (
+                <Link key={m.href} href={m.href} className="card p-5 hover:shadow-card transition group">
+                  <div className={`w-10 h-10 rounded ${m.color} flex items-center justify-center mb-3 group-hover:scale-105 transition`}>
+                    <Icon size={20} />
+                  </div>
+                  <div className="font-medium">{m.label}</div>
+                  <div className="text-xs text-muted mt-1">{m.desc}</div>
+                </Link>
+              );
+            })}
           </div>
-          <div className="card p-5">
-            <div className="text-xs text-muted">Controles de IVA</div>
-            <div className="text-2xl font-semibold mt-1">{ivaControles ?? 0}</div>
+        </section>
+
+        <section>
+          <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Resumen</h2>
+          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+            <div className="card p-5">
+              <div className="text-xs text-muted">Cierres en curso</div>
+              <div className="text-2xl font-semibold mt-1">{cierresPendientes ?? 0}</div>
+            </div>
+            <div className="card p-5">
+              <div className="text-xs text-muted">Controles de IVA</div>
+              <div className="text-2xl font-semibold mt-1">{ivaControles ?? 0}</div>
+            </div>
+            <div className="card p-5">
+              <div className="text-xs text-muted">Manuales / capacitaciones</div>
+              <div className="text-2xl font-semibold mt-1">{manuales ?? 0}</div>
+            </div>
+            <div className="card p-5">
+              <div className="text-xs text-muted">Usuario activo</div>
+              <div className="text-base font-medium mt-1 truncate">{user?.email}</div>
+            </div>
           </div>
-          <div className="card p-5">
-            <div className="text-xs text-muted">Manuales / capacitaciones</div>
-            <div className="text-2xl font-semibold mt-1">{manuales ?? 0}</div>
-          </div>
-          <div className="card p-5">
-            <div className="text-xs text-muted">Usuario activo</div>
-            <div className="text-base font-medium mt-1 truncate">{user?.email}</div>
-          </div>
-        </div>
+        </section>
       </div>
     </AppShell>
   );
