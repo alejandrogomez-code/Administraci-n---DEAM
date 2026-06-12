@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  AlertTriangle, ArrowLeft, Download, FileCheck2, FileText, Loader2,
+  AlertTriangle, ArrowLeft, Download, FileCheck2, FileDown, FileText, Loader2,
   Plus, RefreshCcw, Trash2, Upload, X,
 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
@@ -13,6 +13,7 @@ import { createClient } from '@/lib/supabase/client';
 import { fmtFecha, fmtMoney } from '@/lib/format';
 import { parseCheques } from '@/lib/cheques/parseCheques';
 import { calcularResumen, diasEntre } from '@/lib/cheques/calculos';
+import { descargarPlantillaCheques } from '@/lib/cheques/plantilla';
 import * as XLSX from 'xlsx';
 
 type Cheque = {
@@ -598,6 +599,17 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
         <p className="text-xs text-muted mb-3">
           El archivo debe tener columnas: Vencimiento, Asignación, Importe, Librador, Banco, CUIT, Tipo, Status (1-8). La columna "Día" se calcula automáticamente con la fecha de venta.
         </p>
+
+        <div className="bg-surface-2 rounded p-3 mb-4 flex items-start gap-3">
+          <FileDown size={18} className="text-primary shrink-0 mt-0.5" />
+          <div className="flex-1 text-sm">
+            <div className="font-medium">¿No tenés el modelo?</div>
+            <div className="text-xs text-muted">Descargá la plantilla Excel con las columnas correctas y unas filas de ejemplo.</div>
+          </div>
+          <button onClick={descargarPlantillaCheques} className="btn-secondary text-xs whitespace-nowrap">
+            <FileDown size={12}/> Plantilla
+          </button>
+        </div>
 
         <label className="border-2 border-dashed border-border rounded p-4 text-center cursor-pointer hover:border-primary block">
           {file ? (
