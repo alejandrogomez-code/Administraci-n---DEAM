@@ -19,7 +19,7 @@ type Template = {
   responsable_default: string | null;
 };
 
-type Profile = { id: string; nombre: string };
+type Miembro = { id: string; nombre: string };
 
 export default function NuevoCierrePage() {
   const router = useRouter();
@@ -31,7 +31,7 @@ export default function NuevoCierrePage() {
   const [anio, setAnio] = useState(mesPasado.getFullYear());
   const [responsable, setResponsable] = useState('');
   const [templates, setTemplates] = useState<Template[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [miembros, setMiembros] = useState<Miembro[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -39,15 +39,13 @@ export default function NuevoCierrePage() {
     (async () => {
       const { data: tpl } = await supabase.from('closing_task_templates').select('*').eq('activo', true).order('orden');
       setTemplates(tpl ?? []);
-      const { data: profs } = await supabase.from('profiles').select('id, nombre').eq('activo', true).order('nombre');
-      setProfiles(profs ?? []);
+      const { data: ms } = await supabase.from('team_members').select('id, nombre').eq('activo', true).order('orden').order('nombre');
+      setMiembros(ms ?? []);
     })();
   }, []);
 
-  // Calcula fecha objetivo en base al día del mes SIGUIENTE al cierre
   function fechaObjetivo(dia: number | null): string | null {
     if (!dia) return null;
-    // mes siguiente = mes + 1
     const m = mes === 12 ? 1 : mes + 1;
     const a = mes === 12 ? anio + 1 : anio;
     const d = new Date(a, m - 1, dia);
@@ -58,7 +56,6 @@ export default function NuevoCierrePage() {
     setLoading(true); setError(null);
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      // último día del mes siguiente como fecha estimada de cierre por defecto
       const ms = mes === 12 ? 1 : mes + 1;
       const ay = mes === 12 ? anio + 1 : anio;
       const finMesSig = new Date(ay, ms, 0).toISOString().slice(0, 10);
@@ -76,7 +73,6 @@ export default function NuevoCierrePage() {
         .single();
       if (e1) throw e1;
 
-      // Crear tareas desde templates
       const tareas = templates.map((t) => ({
         closing_id: cl.id,
         template_id: t.id,
@@ -123,11 +119,12 @@ export default function NuevoCierrePage() {
             </div>
           </div>
           <div>
-            <label className="text-xs text-muted">Responsable principal (opcional)</label>
+            <label className="text-xs text-muted">Responsable principal del cierre (opcional)</label>
             <select className="input" value={responsable} onChange={(e) => setResponsable(e.target.value)}>
               <option value="">Sin asignar</option>
-              {profiles.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+              {miembros.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
             </select>
+            <p className="text-xs text-muted mt-1">Se asigna como responsable por defecto a todas las tareas que no tengan uno definido en el template.</p>
           </div>
         </div>
 
