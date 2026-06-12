@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react';
 import {
   BookOpen, Building2, ChevronDown, ChevronLeft, ChevronRight,
   FileSpreadsheet, FileText, LayoutDashboard, LogOut, Settings, Wallet, Banknote,
+  Receipt, Zap,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -13,6 +14,7 @@ type Item = { href: string; label: string; icon: any; children?: Item[] };
 
 const items: Item[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { href: '/accesos-directos', label: 'Accesos directos', icon: Zap },
   {
     href: '/contabilidad',
     label: 'Contabilidad',
@@ -22,7 +24,14 @@ const items: Item[] = [
       { href: '/contabilidad/iva',     label: 'Control de IVA',  icon: Wallet },
     ],
   },
-  { href: '/tesoreria', label: 'Tesorería', icon: Banknote },
+  {
+    href: '/tesoreria',
+    label: 'Tesorería',
+    icon: Banknote,
+    children: [
+      { href: '/tesoreria/venta-cheques', label: 'Venta de cheques', icon: Receipt },
+    ],
+  },
   { href: '/manuales',  label: 'Manuales y Capacitaciones', icon: BookOpen },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
