@@ -1,14 +1,15 @@
 import Link from 'next/link';
-import { ListTodo, Shield, Tags, Users, UserCircle2 } from 'lucide-react';
+import { ListTodo, Shield, Tags, Users, UserCircle2, Zap } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 
 const items = [
-  { href: '/configuracion/usuarios',      label: 'Usuarios',             desc: 'Cuentas con acceso a la app y sus roles', icon: Users },
-  { href: '/configuracion/equipo',        label: 'Equipo (responsables)', desc: 'Personas a las que asignar tareas',     icon: UserCircle2 },
-  { href: '/configuracion/permisos',      label: 'Permisos por rol',     desc: 'Qué puede ver y hacer cada rol',          icon: Shield },
-  { href: '/configuracion/tareas-modelo', label: 'Tareas modelo cierre', desc: 'Plantilla de tareas mensuales',           icon: ListTodo },
-  { href: '/configuracion/categorias',    label: 'Categorías',           desc: 'Etiquetas para clasificar ítems',         icon: Tags },
+  { href: '/configuracion/usuarios',          label: 'Usuarios',              desc: 'Cuentas con acceso a la app y sus roles', icon: Users },
+  { href: '/configuracion/equipo',            label: 'Equipo (responsables)', desc: 'Personas a las que asignar tareas',       icon: UserCircle2 },
+  { href: '/configuracion/permisos',          label: 'Permisos por rol',      desc: 'Qué puede ver y hacer cada rol',          icon: Shield },
+  { href: '/configuracion/tareas-modelo',     label: 'Tareas modelo cierre',  desc: 'Plantilla de tareas mensuales',           icon: ListTodo },
+  { href: '/configuracion/categorias',        label: 'Categorías',            desc: 'Etiquetas para clasificar ítems',         icon: Tags },
+  { href: '/configuracion/accesos-directos',  label: 'Accesos directos',      desc: 'Botones de enlaces externos (solo admin)', icon: Zap },
 ];
 
 export default function ConfigPage() {
