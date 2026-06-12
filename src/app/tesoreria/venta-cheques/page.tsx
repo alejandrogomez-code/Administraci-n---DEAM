@@ -49,7 +49,15 @@ type ClienteProblema = {
   activo: boolean;
 };
 
-type Tab = 'cheques' | 'propuestas' | 'problemas';
+type Librador = {
+  id: string;
+  nombre: string;
+  cuit: string | null;
+  observaciones: string | null;
+  activo: boolean;
+};
+
+type Tab = 'cheques' | 'propuestas' | 'libradores' | 'problemas';
 
 export default function VentaChequesPage() {
   const supabase = createClient();
@@ -59,18 +67,21 @@ export default function VentaChequesPage() {
   const [cheques, setCheques] = useState<Cheque[]>([]);
   const [propuestas, setPropuestas] = useState<Propuesta[]>([]);
   const [problemas, setProblemas] = useState<ClienteProblema[]>([]);
+  const [libradores, setLibradores] = useState<Librador[]>([]);
   const [loading, setLoading] = useState(true);
 
   async function load() {
     setLoading(true);
-    const [{ data: ch }, { data: pr }, { data: pb }] = await Promise.all([
+    const [{ data: ch }, { data: pr }, { data: pb }, { data: lb }] = await Promise.all([
       supabase.from('cheques').select('*').order('vencimiento').order('importe', { ascending: false }),
       supabase.from('propuestas_cheques').select('*').order('created_at', { ascending: false }),
       supabase.from('clientes_problemas').select('*').eq('activo', true).order('librador'),
+      supabase.from('libradores').select('*').order('nombre'),
     ]);
     setCheques((ch as any) ?? []);
     setPropuestas((pr as any) ?? []);
     setProblemas((pb as any) ?? []);
+    setLibradores((lb as any) ?? []);
     setLoading(false);
   }
   useEffect(() => { load(); }, []);
@@ -92,6 +103,9 @@ export default function VentaChequesPage() {
           <TabBtn active={tab==='propuestas'} onClick={() => setTab('propuestas')}>
             Propuestas / Simulador ({propuestas.length})
           </TabBtn>
+          <TabBtn active={tab==='libradores'} onClick={() => setTab('libradores')}>
+            Libradores ({libradores.length})
+          </TabBtn>
           <TabBtn active={tab==='problemas'} onClick={() => setTab('problemas')}>
             Clientes con problemas ({problemas.length})
           </TabBtn>
@@ -101,8 +115,9 @@ export default function VentaChequesPage() {
           <div className="card p-10 text-center text-muted">Cargando...</div>
         ) : (
           <>
-            {tab === 'cheques' && <ChequesTab cheques={cheques} propuestas={propuestas} cuitsProblema={cuitsProblema} problemas={problemas} reload={load} />}
+            {tab === 'cheques' && <ChequesTab cheques={cheques} propuestas={propuestas} cuitsProblema={cuitsProblema} problemas={problemas} libradores={libradores} reload={load} />}
             {tab === 'propuestas' && <PropuestasTab propuestas={propuestas} cheques={cheques} reload={load} router={router} />}
+            {tab === 'libradores' && <LibradoresTab libradores={libradores} reload={load} />}
             {tab === 'problemas' && <ProblemasTab problemas={problemas} reload={load} />}
           </>
         )}
@@ -123,11 +138,12 @@ function TabBtn({ active, onClick, children }: { active: boolean; onClick: () =>
 /* ============================================================
    TAB 1: CHEQUES (lista, filtros, importar Excel, asignar a propuesta)
    ============================================================ */
-function ChequesTab({ cheques, propuestas, cuitsProblema, problemas, reload }: {
+function ChequesTab({ cheques, propuestas, cuitsProblema, problemas, libradores, reload }: {
   cheques: Cheque[];
   propuestas: Propuesta[];
   cuitsProblema: Set<string>;
   problemas: ClienteProblema[];
+  libradores: Librador[];
   reload: () => void;
 }) {
   const supabase = createClient();
@@ -360,8 +376,8 @@ function ChequesTab({ cheques, propuestas, cuitsProblema, problemas, reload }: {
         )}
       </div>
 
-      {showImport && <ImportModal onClose={() => setShowImport(false)} onDone={reload} />}
-      {showNuevoCheque && <NuevoChequeModal onClose={() => setShowNuevoCheque(false)} onDone={reload} />}
+      {showImport && <ImportModal libradores={libradores} onClose={() => setShowImport(false)} onDone={reload} />}
+      {showNuevoCheque && <NuevoChequeModal libradores={libradores} onClose={() => setShowNuevoCheque(false)} onDone={reload} />}
     </>
   );
 }
@@ -536,9 +552,178 @@ function ProblemasTab({ problemas, reload }: { problemas: ClienteProblema[]; rel
 }
 
 /* ============================================================
+   TAB 4: LIBRADORES (base de quienes nos libran cheques)
+   ============================================================ */
+function LibradoresTab({ libradores, reload }: { libradores: Librador[]; reload: () => void }) {
+  const supabase = createClient();
+  const [busqueda, setBusqueda] = useState('');
+  const [soloActivos, setSoloActivos] = useState(true);
+  const [editing, setEditing] = useState<Librador | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const filtrados = useMemo(() => {
+    const q = busqueda.trim().toUpperCase();
+    return libradores.filter((l) => {
+      if (soloActivos && !l.activo) return false;
+      if (!q) return true;
+      return l.nombre.toUpperCase().includes(q) || (l.cuit ?? '').includes(q);
+    });
+  }, [libradores, busqueda, soloActivos]);
+
+  function nuevo() {
+    setEditing({ id: '', nombre: '', cuit: '', observaciones: '', activo: true });
+  }
+
+  async function guardar() {
+    if (!editing) return;
+    if (!editing.nombre.trim()) { alert('El nombre es obligatorio.'); return; }
+    setBusy(true);
+    try {
+      const cuit = (editing.cuit ?? '').replace(/[^0-9]/g, '') || null;
+      const payload = {
+        nombre: editing.nombre.trim(),
+        cuit,
+        observaciones: editing.observaciones?.trim() || null,
+        activo: editing.activo,
+      };
+      if (editing.id) {
+        const { error } = await supabase.from('libradores').update(payload).eq('id', editing.id);
+        if (error) throw error;
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        const { error } = await supabase.from('libradores').insert({ ...payload, created_by: user?.id });
+        if (error) throw error;
+      }
+      setEditing(null);
+      reload();
+    } catch (err: any) {
+      alert(err.message ?? 'Error al guardar.');
+    } finally { setBusy(false); }
+  }
+
+  async function eliminar(l: Librador) {
+    if (!confirm(`¿Eliminar "${l.nombre}" de los libradores?`)) return;
+    const { error } = await supabase.from('libradores').delete().eq('id', l.id);
+    if (error) { alert(error.message); return; }
+    reload();
+  }
+
+  async function toggleActivo(l: Librador) {
+    await supabase.from('libradores').update({ activo: !l.activo }).eq('id', l.id);
+    reload();
+  }
+
+  // Detección de duplicados de CUIT (informativo)
+  const cuitsRepetidos = useMemo(() => {
+    const c = new Map<string, number>();
+    for (const l of libradores) if (l.cuit) c.set(l.cuit, (c.get(l.cuit) ?? 0) + 1);
+    return new Set(Array.from(c.entries()).filter(([, n]) => n > 1).map(([k]) => k));
+  }, [libradores]);
+
+  return (
+    <>
+      <div className="card p-4 flex items-end gap-3 flex-wrap">
+        <div className="flex-1 min-w-64">
+          <label className="text-xs text-muted">Buscar por nombre o CUIT</label>
+          <input className="input" value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Ej: SANATORIO, 30..." />
+        </div>
+        <label className="flex items-center gap-2 text-sm pb-1.5">
+          <input type="checkbox" checked={soloActivos} onChange={(e) => setSoloActivos(e.target.checked)} />
+          Sólo activos
+        </label>
+        <button className="btn-primary" onClick={nuevo}><Plus size={14}/> Nuevo librador</button>
+      </div>
+
+      <div className="card overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex items-center justify-between text-sm">
+          <div>{filtrados.length} de {libradores.length} libradores</div>
+          <button onClick={reload} className="btn-ghost text-sm"><RefreshCcw size={14}/></button>
+        </div>
+        {filtrados.length === 0 ? (
+          <div className="p-10 text-center text-muted text-sm">
+            {libradores.length === 0 ? <>Sin libradores. <button className="text-primary" onClick={nuevo}>Agregar el primero</button>.</> : 'Sin resultados.'}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="tbl min-w-[700px]">
+              <thead>
+                <tr>
+                  <th>Nombre</th>
+                  <th>CUIT</th>
+                  <th>Observaciones</th>
+                  <th>Activo</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtrados.map((l) => (
+                  <tr key={l.id} className={!l.activo ? 'opacity-50' : ''}>
+                    <td className="font-medium text-sm">{l.nombre}</td>
+                    <td className="font-mono text-xs">
+                      {l.cuit ?? <span className="text-muted">—</span>}
+                      {l.cuit && cuitsRepetidos.has(l.cuit) && (
+                        <span className="ml-1 chip bg-warning/15 text-warning" title="CUIT compartido con otro librador">repetido</span>
+                      )}
+                    </td>
+                    <td className="text-xs max-w-xs truncate">{l.observaciones ?? '—'}</td>
+                    <td>
+                      <input type="checkbox" checked={l.activo} onChange={() => toggleActivo(l)} className="cursor-pointer" />
+                    </td>
+                    <td className="flex gap-3 text-xs whitespace-nowrap">
+                      <button className="text-primary" onClick={() => setEditing(l)}>Editar</button>
+                      <button className="text-danger" onClick={() => eliminar(l)}><Trash2 size={12} className="inline"/></button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      <div className="text-xs text-muted">
+        Al cargar un cheque manualmente o importar desde Excel, si el nombre del librador coincide con uno de esta lista y tiene un único CUIT, se autocompleta el CUIT del cheque.
+      </div>
+
+      {editing && (
+        <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4" onClick={() => setEditing(null)}>
+          <div className="card max-w-md w-full p-6" onClick={(e) => e.stopPropagation()}>
+            <h3 className="font-semibold mb-3">{editing.id ? 'Editar librador' : 'Nuevo librador'}</h3>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs text-muted">Nombre *</label>
+                <input className="input" value={editing.nombre} onChange={(e) => setEditing({ ...editing, nombre: e.target.value })} />
+              </div>
+              <div>
+                <label className="text-xs text-muted">CUIT</label>
+                <input className="input" value={editing.cuit ?? ''} onChange={(e) => setEditing({ ...editing, cuit: e.target.value })} placeholder="11 dígitos" />
+              </div>
+              <div>
+                <label className="text-xs text-muted">Observaciones</label>
+                <textarea className="input min-h-20" value={editing.observaciones ?? ''} onChange={(e) => setEditing({ ...editing, observaciones: e.target.value })} />
+              </div>
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={editing.activo} onChange={(e) => setEditing({ ...editing, activo: e.target.checked })} />
+                Activo
+              </label>
+            </div>
+            <div className="flex justify-end gap-2 mt-4">
+              <button className="btn-secondary" disabled={busy} onClick={() => setEditing(null)}>Cancelar</button>
+              <button className="btn-primary" disabled={busy} onClick={guardar}>
+                {busy ? <><Loader2 className="animate-spin" size={14}/> Guardando...</> : 'Guardar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ============================================================
    MODALES
    ============================================================ */
-function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function ImportModal({ libradores, onClose, onDone }: { libradores: Librador[]; onClose: () => void; onDone: () => void }) {
   const supabase = createClient();
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
@@ -546,12 +731,42 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [reemplazar, setReemplazar] = useState(false);
+  const [cuitsAutocompletados, setCuitsAutocompletados] = useState(0);
+
+  // Mapa de librador -> cuit (por nombre normalizado)
+  function buildLookup(): Map<string, string> {
+    const map = new Map<string, string>();
+    // primero recorrer todos y agrupar por nombre
+    const grupos = new Map<string, Set<string>>();
+    for (const l of libradores) {
+      if (!l.cuit) continue;
+      const k = l.nombre.trim().toUpperCase();
+      const s = grupos.get(k) ?? new Set<string>();
+      s.add(l.cuit);
+      grupos.set(k, s);
+    }
+    // sólo mantener los nombres con UN cuit único
+    for (const [k, s] of grupos.entries()) {
+      if (s.size === 1) map.set(k, Array.from(s)[0]);
+    }
+    return map;
+  }
 
   async function leer() {
     if (!file) return;
     setBusy(true); setError(null);
     try {
       const { rows, warnings } = await parseCheques(file);
+      // autocompletar CUIT desde libradores cuando matchee el nombre exacto
+      const lookup = buildLookup();
+      let count = 0;
+      for (const r of rows) {
+        if (!r.cuit && r.librador) {
+          const cuit = lookup.get(r.librador.trim().toUpperCase());
+          if (cuit) { r.cuit = cuit; count++; }
+        }
+      }
+      setCuitsAutocompletados(count);
       setPreview(rows);
       setWarnings(warnings);
     } catch (e: any) { setError(e.message); } finally { setBusy(false); }
@@ -646,6 +861,9 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
             <div className="mt-3 text-sm">
               <div className="font-medium">Vista previa ({preview.length} cheques detectados)</div>
               <div className="text-xs text-muted">Total: {fmtMoney(preview.reduce((acc, c) => acc + c.importe, 0))}</div>
+              {cuitsAutocompletados > 0 && (
+                <div className="text-xs text-success mt-1">✓ CUIT autocompletado en {cuitsAutocompletados} cheque{cuitsAutocompletados === 1 ? '' : 's'} desde la base de Libradores.</div>
+              )}
             </div>
             <div className="mt-2 max-h-48 overflow-y-auto border border-border rounded">
               <table className="tbl text-xs">
@@ -687,12 +905,24 @@ function ImportModal({ onClose, onDone }: { onClose: () => void; onDone: () => v
   );
 }
 
-function NuevoChequeModal({ onClose, onDone }: { onClose: () => void; onDone: () => void }) {
+function NuevoChequeModal({ libradores, onClose, onDone }: { libradores: Librador[]; onClose: () => void; onDone: () => void }) {
   const supabase = createClient();
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({
     vencimiento: '', asignacion: '', importe: '', librador: '', banco: '', cuit: '', tipo: '', status: '',
   });
+  const [showSugg, setShowSugg] = useState(false);
+
+  const sugerencias = useMemo(() => {
+    const q = form.librador.trim().toUpperCase();
+    if (q.length < 2) return [];
+    return libradores.filter((l) => l.nombre.toUpperCase().includes(q)).slice(0, 8);
+  }, [form.librador, libradores]);
+
+  function pickLibrador(l: Librador) {
+    setForm({ ...form, librador: l.nombre, cuit: l.cuit ?? form.cuit });
+    setShowSugg(false);
+  }
 
   async function guardar() {
     if (!form.vencimiento || !form.importe) { alert('Vencimiento e importe son obligatorios.'); return; }
@@ -742,9 +972,27 @@ function NuevoChequeModal({ onClose, onDone }: { onClose: () => void; onDone: ()
               </select>
             </div>
           </div>
-          <div>
-            <label className="text-xs text-muted">Librador</label>
-            <input className="input" value={form.librador} onChange={(e) => setForm({ ...form, librador: e.target.value })} />
+          <div className="relative">
+            <label className="text-xs text-muted">Librador (autocompleta CUIT)</label>
+            <input
+              className="input"
+              value={form.librador}
+              onChange={(e) => { setForm({ ...form, librador: e.target.value }); setShowSugg(true); }}
+              onFocus={() => setShowSugg(true)}
+              onBlur={() => setTimeout(() => setShowSugg(false), 150)}
+              placeholder="Empezá a escribir el nombre..."
+            />
+            {showSugg && sugerencias.length > 0 && (
+              <div className="absolute left-0 right-0 mt-1 card shadow-card z-10 max-h-64 overflow-y-auto">
+                {sugerencias.map((l) => (
+                  <button key={l.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pickLibrador(l)}
+                    className="w-full text-left px-3 py-2 hover:bg-surface-2 border-b border-border last:border-b-0 text-sm">
+                    <div className="font-medium">{l.nombre}</div>
+                    <div className="text-xs text-muted">CUIT {l.cuit ?? '—'}</div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
           <div>
             <label className="text-xs text-muted">Banco</label>
