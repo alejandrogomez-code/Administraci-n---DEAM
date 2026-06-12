@@ -33,7 +33,7 @@ export default function CierresListPage() {
     setLoading(true);
     const { data: cls } = await supabase
       .from('accounting_closings')
-      .select('*, profiles:responsable_principal(nombre)')
+      .select('*, team_members:responsable_principal(nombre)')
       .order('anio', { ascending: false })
       .order('mes', { ascending: false });
 
@@ -46,7 +46,7 @@ export default function CierresListPage() {
       const compl = tasks?.filter((t: any) => t.estado === 'completado').length ?? 0;
       result.push({
         ...c,
-        responsable_nombre: (c as any).profiles?.nombre,
+        responsable_nombre: (c as any).team_members?.nombre,
         avance: total ? Math.round((compl / total) * 100) : 0,
         total_tareas: total,
         tareas_completadas: compl,
