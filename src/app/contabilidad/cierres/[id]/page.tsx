@@ -33,7 +33,7 @@ type Closing = {
   fecha_estimada_cierre: string | null;
 };
 
-type Profile = { id: string; nombre: string };
+type Miembro = { id: string; nombre: string };
 
 export default function CierreDetallePage() {
   const supabase = createClient();
@@ -43,7 +43,7 @@ export default function CierreDetallePage() {
 
   const [closing, setClosing] = useState<Closing | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [profiles, setProfiles] = useState<Profile[]>([]);
+  const [miembros, setMiembros] = useState<Miembro[]>([]);
   const [filtroEstado, setFiltroEstado] = useState('');
   const [filtroResp, setFiltroResp] = useState('');
   const [editing, setEditing] = useState<Task | null>(null);
@@ -55,8 +55,8 @@ export default function CierreDetallePage() {
     setClosing(c as any);
     const { data: t } = await supabase.from('accounting_closing_tasks').select('*').eq('closing_id', id).order('orden');
     setTasks((t as any) ?? []);
-    const { data: p } = await supabase.from('profiles').select('id, nombre').eq('activo', true).order('nombre');
-    setProfiles(p ?? []);
+    const { data: ms } = await supabase.from('team_members').select('id, nombre').eq('activo', true).order('orden').order('nombre');
+    setMiembros(ms ?? []);
     setLoading(false);
   }
   useEffect(() => { load(); }, [id]);
@@ -66,32 +66,31 @@ export default function CierreDetallePage() {
   const completadas = tasks.filter((t) => t.estado === 'completado').length;
   const avance = total ? Math.round((completadas / total) * 100) : 0;
 
-  async function cambiarEstadoTarea(t: Task, estado: Task['estado']) {
+  async function actualizarTarea(t: Task, cambios: Partial<Task>, opciones?: { recalcularCierre?: boolean }) {
     const { data: { user } } = await supabase.auth.getUser();
-    const upd: any = { estado, updated_by: user?.id };
-    if (estado === 'completado') upd.fecha_real_finalizacion = new Date().toISOString().slice(0, 10);
-    if (estado !== 'completado') upd.fecha_real_finalizacion = null;
-    await supabase.from('accounting_closing_tasks').update(upd).eq('id', t.id);
-    // si todas completadas, marcar cierre como completado
-    if (estado === 'completado') {
-      const otrasPendientes = tasks.filter((x) => x.id !== t.id && x.estado !== 'completado').length;
-      if (otrasPendientes === 0) {
-        await supabase.from('accounting_closings').update({ estado: 'completado' }).eq('id', id);
-      } else {
-        await supabase.from('accounting_closings').update({ estado: 'en_proceso' }).eq('id', id);
-      }
-    } else {
-      // si alguna no está completada, marcar el cierre en proceso (si tiene alguna distinta a pendiente)
-      const algunaEnProceso = tasks.some((x) => x.id !== t.id && x.estado !== 'pendiente') || estado === 'en_proceso';
-      await supabase.from('accounting_closings').update({ estado: algunaEnProceso ? 'en_proceso' : 'pendiente' }).eq('id', id);
+    const upd: any = { ...cambios, updated_by: user?.id };
+
+    if ('estado' in cambios) {
+      if (cambios.estado === 'completado') upd.fecha_real_finalizacion = new Date().toISOString().slice(0, 10);
+      else upd.fecha_real_finalizacion = null;
     }
-    load();
+
+    await supabase.from('accounting_closing_tasks').update(upd).eq('id', t.id);
+    setTasks((arr) => arr.map((x) => x.id === t.id ? { ...x, ...upd } as any : x));
+
+    if (opciones?.recalcularCierre) {
+      const futurasTasks = tasks.map((x) => x.id === t.id ? { ...x, ...upd } as Task : x);
+      const todasCompl = futurasTasks.every((x) => x.estado === 'completado');
+      const algunaIniciada = futurasTasks.some((x) => x.estado !== 'pendiente');
+      const nuevoEstado = todasCompl ? 'completado' : (algunaIniciada ? 'en_proceso' : 'pendiente');
+      await supabase.from('accounting_closings').update({ estado: nuevoEstado }).eq('id', id);
+      setClosing((c) => c ? { ...c, estado: nuevoEstado } : c);
+    }
   }
 
   async function guardarEdit() {
     if (!editing) return;
-    const { data: { user } } = await supabase.auth.getUser();
-    await supabase.from('accounting_closing_tasks').update({
+    await actualizarTarea(editing, {
       nombre: editing.nombre,
       descripcion: editing.descripcion,
       responsable_id: editing.responsable_id,
@@ -100,10 +99,8 @@ export default function CierreDetallePage() {
       fecha_real_finalizacion: editing.fecha_real_finalizacion,
       estado: editing.estado,
       observaciones: editing.observaciones,
-      updated_by: user?.id,
-    }).eq('id', editing.id);
+    }, { recalcularCierre: true });
     setEditing(null);
-    load();
   }
 
   async function eliminarTarea(t: Task) {
@@ -124,7 +121,6 @@ export default function CierreDetallePage() {
 
   async function duplicarMesAnterior() {
     if (!closing) return;
-    // buscar mes anterior
     const mp = closing.mes === 1 ? 12 : closing.mes - 1;
     const ap = closing.mes === 1 ? closing.anio - 1 : closing.anio;
     const { data: prev } = await supabase.from('accounting_closings').select('id').eq('mes', mp).eq('anio', ap).maybeSingle();
@@ -151,11 +147,13 @@ export default function CierreDetallePage() {
   if (loading) return <AppShell><TopBar titulo="Cargando..." /></AppShell>;
   if (!closing) return <AppShell><TopBar titulo="No encontrado" /></AppShell>;
 
+  const respPrincipal = miembros.find((m) => m.id === closing.responsable_principal)?.nombre;
+
   return (
     <AppShell>
       <TopBar
         titulo={`Cierre ${nombreMes(closing.mes)} ${closing.anio}`}
-        subtitulo={`Fecha estimada: ${fmtFecha(closing.fecha_estimada_cierre)} • ${completadas}/${total} tareas`}
+        subtitulo={`Fecha estimada: ${fmtFecha(closing.fecha_estimada_cierre)} • ${completadas}/${total} tareas${respPrincipal ? ' • Responsable: ' + respPrincipal : ''}`}
         actions={<>
           <Link href="/contabilidad/cierres" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>
           <button onClick={duplicarMesAnterior} className="btn-secondary"><Copy size={14}/> Duplicar mes anterior</button>
@@ -185,27 +183,26 @@ export default function CierreDetallePage() {
               </select>
               <select className="input !w-auto" value={filtroResp} onChange={(e) => setFiltroResp(e.target.value)}>
                 <option value="">Todos los responsables</option>
-                {profiles.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                {miembros.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
               </select>
             </div>
             <button onClick={eliminarCierre} className="btn-ghost text-danger text-sm"><Trash2 size={14}/> Eliminar cierre</button>
           </div>
-          <table className="tbl">
-            <thead>
-              <tr>
-                <th>#</th>
-                <th>Tarea</th>
-                <th>Responsable</th>
-                <th>Fecha objetivo</th>
-                <th>Finalizada</th>
-                <th>Estado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtradas.map((t) => {
-                const resp = profiles.find((p) => p.id === t.responsable_id)?.nombre;
-                return (
+          <div className="overflow-x-auto">
+            <table className="tbl min-w-[1000px]">
+              <thead>
+                <tr>
+                  <th>#</th>
+                  <th>Tarea</th>
+                  <th>Responsable</th>
+                  <th>Fecha objetivo</th>
+                  <th>Finalizada</th>
+                  <th>Estado</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtradas.map((t) => (
                   <tr key={t.id}>
                     <td className="text-muted">{t.orden}</td>
                     <td>
@@ -213,7 +210,16 @@ export default function CierreDetallePage() {
                       {t.descripcion && <div className="text-xs text-muted">{t.descripcion}</div>}
                       {t.observaciones && <div className="text-xs italic text-muted mt-1">📝 {t.observaciones}</div>}
                     </td>
-                    <td className="text-sm">{resp ?? '-'}</td>
+                    <td>
+                      <select
+                        value={t.responsable_id ?? ''}
+                        onChange={(e) => actualizarTarea(t, { responsable_id: e.target.value || null })}
+                        className="input !w-auto !py-1 text-xs"
+                      >
+                        <option value="">Sin asignar</option>
+                        {miembros.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                      </select>
+                    </td>
                     <td className="text-xs whitespace-nowrap">
                       {t.fecha_estimada && <div>{fmtFecha(t.fecha_estimada)}</div>}
                       {t.fecha_estimada_2 && <div className="text-muted">{fmtFecha(t.fecha_estimada_2)}</div>}
@@ -222,7 +228,7 @@ export default function CierreDetallePage() {
                     <td>
                       <select
                         value={t.estado}
-                        onChange={(e) => cambiarEstadoTarea(t, e.target.value as Task['estado'])}
+                        onChange={(e) => actualizarTarea(t, { estado: e.target.value as Task['estado'] }, { recalcularCierre: true })}
                         className="input !w-auto !py-1 text-xs"
                       >
                         <option value="pendiente">Pendiente</option>
@@ -230,15 +236,15 @@ export default function CierreDetallePage() {
                         <option value="completado">Completado</option>
                       </select>
                     </td>
-                    <td className="flex gap-1">
+                    <td className="flex gap-3 whitespace-nowrap">
                       <button onClick={() => setEditing(t)} className="text-primary text-xs hover:underline">Editar</button>
                       <button onClick={() => eliminarTarea(t)} className="text-danger text-xs hover:underline">Eliminar</button>
                     </td>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -260,7 +266,7 @@ export default function CierreDetallePage() {
                   <label className="text-xs text-muted">Responsable</label>
                   <select className="input" value={editing.responsable_id ?? ''} onChange={(e) => setEditing({ ...editing, responsable_id: e.target.value || null })}>
                     <option value="">Sin asignar</option>
-                    {profiles.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                    {miembros.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
                   </select>
                 </div>
                 <div>
