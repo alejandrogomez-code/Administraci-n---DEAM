@@ -92,26 +92,15 @@ export default function PropuestaDetallePage() {
     const fv = prop.fecha_venta;
     const tasa = prop.tasa;
 
-    // Hoja 1: cheques con cálculos
-    const detalleRows = cheques.map((c) => {
-      const dias = diasEntre(fv, c.vencimiento);
-      const desc = descuentoFactor(dias, tasa);
-      const aPer = aPercibirCheque(c.importe, dias, tasa);
-      return {
-        Vencimiento: c.vencimiento,
-        'Asignación': c.asignacion ?? '',
-        'Importe': c.importe,
-        'Día': dias ?? '',
-        'Descuento': desc != null ? Number((desc * 100).toFixed(4)) / 100 : '',
-        'A percibir': aPer ?? '',
-        'Librador': c.librador ?? '',
-        'Banco': c.banco ?? '',
-        'CUIT': c.cuit ?? '',
-        'Tipo': c.tipo ?? '',
-        'Status': c.status ?? '',
-        'Observación': (c.cuit && cuitsProblema.has(c.cuit)) ? 'Problemas para negociar' : (c.observaciones ?? ''),
-      };
-    });
+    // Hoja 1: cheques (sólo campos solicitados)
+    const detalleRows = cheques.map((c) => ({
+      'Vencimiento':   c.vencimiento,
+      'Asignación':    c.asignacion ?? '',
+      'Importe Total': c.importe,
+      'Librador':      c.librador ?? '',
+      'CUIT':          c.cuit ?? '',
+      'Status':        c.status ?? '',
+    }));
 
     // Hoja 2: resumen
     const resumenRows = [
