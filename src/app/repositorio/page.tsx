@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  AlertTriangle, ExternalLink, FileText,
-  Loader2, Plus, RefreshCcw, Settings2, Trash2, Upload,
+  ChevronLeft, ExternalLink, FileText, Folder,
+  Loader2, Plus, RefreshCcw, Search, Settings2, Trash2, Upload,
 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
@@ -85,6 +85,11 @@ function sanitizeKey(name: string): string {
   return (clean || 'archivo') + cleanExt;
 }
 
+// Normaliza para buscar sin distinguir acentos ni mayúsculas
+function norm(s: string): string {
+  return (s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
 function slugify(s: string): string {
   return s
     .toLowerCase()
@@ -104,6 +109,7 @@ export default function RepositorioPage() {
   const [gestionar, setGestionar] = useState(false);
   const [busy, setBusy] = useState(false);
   const [buscar, setBuscar] = useState('');
+  const [gbuscar, setGbuscar] = useState(''); // búsqueda global en la portada
 
   async function load() {
     setLoading(true);
@@ -217,11 +223,24 @@ export default function RepositorioPage() {
   const docsTab = docs.filter((d) => d.jurisdiccion_id === tab);
   const docsFiltrados = docsTab.filter((d) => {
     if (!buscar.trim()) return true;
-    const q = buscar.toLowerCase();
-    return d.documento.toLowerCase().includes(q)
-      || (d.detalle ?? '').toLowerCase().includes(q)
-      || (d.archivo_nombre ?? '').toLowerCase().includes(q);
+    const q = norm(buscar);
+    return norm(d.documento).includes(q)
+      || norm(d.detalle ?? '').includes(q)
+      || norm(d.archivo_nombre ?? '').includes(q);
   });
+
+  // Búsqueda global de documentos (portada de Vencimientos)
+  const resultadosGlobal = useMemo(() => {
+    const q = norm(gbuscar);
+    if (!q) return [];
+    return docs
+      .filter((d) =>
+        norm(d.documento).includes(q)
+        || norm(d.detalle ?? '').includes(q)
+        || norm(d.archivo_nombre ?? '').includes(q)
+        || norm(jurById[d.jurisdiccion_id]?.nombre ?? '').includes(q))
+      .sort((a, b) => a.documento.localeCompare(b.documento));
+  }, [gbuscar, docs, jurById]);
 
   const jurActual = jurById[tab];
 
@@ -233,68 +252,108 @@ export default function RepositorioPage() {
         actions={
           tab !== 'vencimientos'
             ? <button onClick={nuevoDoc} className="btn-primary"><Plus size={14} /> Nuevo documento</button>
-            : undefined
+            : <button onClick={load} className="btn-ghost" title="Refrescar"><RefreshCcw size={14} /></button>
         }
       />
 
       <div className="p-6 space-y-4">
-        {/* Tabs */}
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
-          <button
-            onClick={() => setTab('vencimientos')}
-            className={`shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm transition border ${
-              tab === 'vencimientos'
-                ? 'bg-primary/10 text-primary border-primary/30 font-medium'
-                : 'text-text border-border hover:bg-surface-2'
-            }`}
-          >
-            <AlertTriangle size={14} /> Vencimientos
-            {(vencidos.length + proximos.length) > 0 && (
-              <span className="ml-1 text-xs bg-danger/15 text-danger rounded-full px-1.5">
-                {vencidos.length + proximos.length}
-              </span>
-            )}
-          </button>
-
-          {jurs.map((j) => (
-            <button
-              key={j.id}
-              onClick={() => { setTab(j.id); setBuscar(''); }}
-              className={`shrink-0 px-3 py-1.5 rounded text-sm transition border ${
-                tab === j.id
-                  ? 'bg-primary/10 text-primary border-primary/30 font-medium'
-                  : 'text-text border-border hover:bg-surface-2'
-              }`}
-            >
-              {j.nombre}
-            </button>
-          ))}
-
-          <button
-            onClick={() => setGestionar(true)}
-            className="shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded text-sm text-muted border border-border hover:bg-surface-2 transition"
-            title="Gestionar jurisdicciones"
-          >
-            <Settings2 size={14} /> Gestionar
-          </button>
-
-          <button onClick={load} className="shrink-0 btn-ghost ml-auto" title="Refrescar">
-            <RefreshCcw size={14} />
-          </button>
-        </div>
-
         {loading ? (
           <div className="card p-10 text-center text-muted">Cargando...</div>
         ) : tab === 'vencimientos' ? (
-          <Vencimientos vencidos={vencidos} proximos={proximos} jurById={jurById} onIr={(d) => setTab(d.jurisdiccion_id)} />
-        ) : (
-          <div className="card overflow-hidden">
-            <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-              <div className="text-sm font-medium">{jurActual?.nombre ?? '—'}</div>
-              <div className="flex items-center gap-2">
-                <input className="input !w-auto !py-1.5 text-sm" placeholder="Buscar..." value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+          <>
+            <Vencimientos vencidos={vencidos} proximos={proximos} jurById={jurById} onIr={(d) => { setBuscar(''); setTab(d.jurisdiccion_id); }} />
+
+            <div className="card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-sm font-medium">Jurisdicciones</div>
+                <div className="relative">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                  <input
+                    className="input !w-64 !py-1.5 !pl-8 text-sm"
+                    placeholder="Buscar documentos..."
+                    value={gbuscar}
+                    onChange={(e) => setGbuscar(e.target.value)}
+                  />
+                </div>
               </div>
+
+              {gbuscar.trim() ? (
+                resultadosGlobal.length === 0 ? (
+                  <div className="p-8 text-center text-muted text-sm">Sin documentos que coincidan con “{gbuscar}”.</div>
+                ) : (
+                  <div className="overflow-x-auto">
+                    <table className="tbl min-w-[640px]">
+                      <thead>
+                        <tr>
+                          <th>Jurisdicción</th>
+                          <th>Documento</th>
+                          <th>Vencimiento</th>
+                          <th>Estado</th>
+                          <th></th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {resultadosGlobal.map((d) => (
+                          <tr key={d.id}>
+                            <td><span className="chip bg-surface-2 text-text">{jurById[d.jurisdiccion_id]?.nombre ?? '—'}</span></td>
+                            <td className="text-sm font-medium">{d.documento}</td>
+                            <td className="text-sm whitespace-nowrap">{d.vencimiento ? fmtFecha(d.vencimiento) : <span className="text-muted">—</span>}</td>
+                            <td><EstadoChip estado={estadoDe(d)} /></td>
+                            <td className="text-xs whitespace-nowrap">
+                              <button className="text-primary hover:underline" onClick={() => { setBuscar(gbuscar); setTab(d.jurisdiccion_id); }}>Ver</button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                )
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 p-3">
+                  {jurs.map((j) => {
+                    const cant = docs.filter((d) => d.jurisdiccion_id === j.id).length;
+                    return (
+                      <button
+                        key={j.id}
+                        onClick={() => { setBuscar(''); setTab(j.id); }}
+                        className="flex items-center gap-3 px-3 py-2.5 rounded border border-border hover:bg-surface-2 hover:border-primary/40 transition text-left"
+                      >
+                        <span className="w-8 h-8 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0">
+                          <Folder size={16} />
+                        </span>
+                        <span className="font-medium text-sm truncate flex-1">{j.nombre}</span>
+                        <span className="text-xs text-muted shrink-0">{cant} doc{cant === 1 ? '' : 's'}</span>
+                      </button>
+                    );
+                  })}
+                  <button
+                    onClick={() => setGestionar(true)}
+                    className="flex items-center gap-3 px-3 py-2.5 rounded border border-dashed border-border hover:bg-surface-2 transition text-left text-muted"
+                  >
+                    <span className="w-8 h-8 rounded bg-surface-2 flex items-center justify-center shrink-0">
+                      <Settings2 size={16} />
+                    </span>
+                    <span className="font-medium text-sm flex-1">Gestionar jurisdicciones</span>
+                    <Plus size={14} className="shrink-0" />
+                  </button>
+                </div>
+              )}
             </div>
+          </>
+        ) : (
+          <>
+            <button onClick={() => { setBuscar(''); setTab('vencimientos'); }} className="inline-flex items-center gap-1 text-sm text-muted hover:text-text">
+              <ChevronLeft size={14} /> Volver al repositorio
+            </button>
+
+            <div className="card overflow-hidden">
+              <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
+                <div className="text-sm font-medium">{jurActual?.nombre ?? '—'}</div>
+                <div className="relative">
+                  <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                  <input className="input !w-auto !py-1.5 !pl-8 text-sm" placeholder="Buscar..." value={buscar} onChange={(e) => setBuscar(e.target.value)} />
+                </div>
+              </div>
 
             {docsFiltrados.length === 0 ? (
               <div className="p-10 text-center text-muted text-sm">
@@ -351,6 +410,7 @@ export default function RepositorioPage() {
               </div>
             )}
           </div>
+          </>
         )}
       </div>
 
