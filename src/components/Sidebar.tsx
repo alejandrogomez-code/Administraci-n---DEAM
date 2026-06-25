@@ -37,11 +37,16 @@ const items: Item[] = [
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ rol }: { rol?: string | null }) {
   const path = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  // El rol "ventas" solo ve la sección Repositorio
+  const visibleItems = rol === 'ventas'
+    ? items.filter((it) => it.href === '/repositorio')
+    : items;
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('deam.sidebar') === '1');
@@ -88,7 +93,7 @@ export default function Sidebar() {
       </div>
 
       <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-        {items.map((it) => {
+        {visibleItems.map((it) => {
           const Icon = it.icon;
           const active = isActive(it.href);
           const hasChildren = !!it.children?.length;
