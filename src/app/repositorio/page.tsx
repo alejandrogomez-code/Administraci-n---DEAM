@@ -66,6 +66,25 @@ function EstadoChip({ estado }: { estado: Estado }) {
   return <span className="chip bg-surface-2 text-muted">Sin documento</span>;
 }
 
+// Limpia el nombre para usarlo como clave en Supabase Storage
+// (no admite acentos ni varios símbolos). Mantené file.name aparte para mostrar.
+function sanitizeKey(name: string): string {
+  const dot = name.lastIndexOf('.');
+  const ext = dot > 0 ? name.slice(dot) : '';
+  const base = dot > 0 ? name.slice(0, dot) : name;
+  const clean = base
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9._-]+/g, '_')
+    .replace(/_+/g, '_')
+    .replace(/^_+|_+$/g, '');
+  const cleanExt = ext
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9.]+/g, '');
+  return (clean || 'archivo') + cleanExt;
+}
+
 function slugify(s: string): string {
   return s
     .toLowerCase()
@@ -142,7 +161,7 @@ export default function RepositorioPage() {
 
       if (file) {
         const ts = Date.now();
-        const path = `${editing.jurisdiccion_id}/${ts}_${file.name}`;
+        const path = `${editing.jurisdiccion_id}/${ts}_${sanitizeKey(file.name)}`;
         const { error: upErr } = await supabase.storage.from(BUCKET).upload(path, file, { upsert: false });
         if (upErr) throw upErr;
         archivo_url = path;
