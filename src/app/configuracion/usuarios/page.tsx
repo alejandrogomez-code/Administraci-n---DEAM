@@ -17,7 +17,7 @@ type Profile = {
   created_at: string;
 };
 
-const ROLES = ['admin', 'usuario_admin_1', 'usuario_admin_2', 'usuario_admin_3'];
+const ROLES = ['admin', 'usuario_admin_1', 'usuario_admin_2', 'usuario_admin_3', 'ventas'];
 
 export default function UsuariosPage() {
   const supabase = createClient();
