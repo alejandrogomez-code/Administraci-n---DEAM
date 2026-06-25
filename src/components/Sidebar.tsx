@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   BookOpen, Building2, ChevronDown, ChevronLeft, ChevronRight,
-  FileSpreadsheet, FileText, LayoutDashboard, LogOut, Settings, Wallet, Banknote,
+  FileSpreadsheet, FileText, FolderArchive, LayoutDashboard, LogOut, Settings, Wallet, Banknote,
   Receipt, Zap,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
@@ -33,6 +33,7 @@ const items: Item[] = [
     ],
   },
   { href: '/manuales',  label: 'Manuales y Capacitaciones', icon: BookOpen },
+  { href: '/repositorio', label: 'Repositorio', icon: FolderArchive },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
 
