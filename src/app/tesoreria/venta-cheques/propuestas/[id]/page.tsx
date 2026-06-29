@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, FileDown, Loader2, Trash2 } from 'lucide-react';
+import { ArrowLeft, FileDown, Loader2, RefreshCcw, Lock, Trash2 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFecha, fmtMoney, fmtNum } from '@/lib/format';
 import { aPercibirCheque, calcularResumen, diasEntre, descuentoFactor } from '@/lib/cheques/calculos';
+import { generarSnapshot, type ChequeSnapshot } from '@/lib/cheques/snapshot';
 import * as XLSX from 'xlsx';
 
 type Propuesta = {
@@ -19,6 +20,14 @@ type Propuesta = {
   banco_operacion: string | null;
   notas: string | null;
   estado: 'borrador' | 'propuesta' | 'finalizada' | 'cancelada';
+  // Snapshot (se completan al finalizar la propuesta)
+  snap_cantidad: number | null;
+  snap_total_a_vender: number | null;
+  snap_aproximado_a_percibir: number | null;
+  snap_costo_aproximado: number | null;
+  snap_cft_pct: number | null;
+  snap_plazo_promedio: number | null;
+  snap_finalizada_en: string | null;
 };
 
 type Cheque = {
@@ -43,35 +52,88 @@ export default function PropuestaDetallePage() {
 
   const [prop, setProp] = useState<Propuesta | null>(null);
   const [cheques, setCheques] = useState<Cheque[]>([]);
+  const [detalleSnap, setDetalleSnap] = useState<ChequeSnapshot[]>([]);
   const [cuitsProblema, setCuitsProblema] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [snapshotting, setSnapshotting] = useState(false);
 
   async function load() {
     setLoading(true);
-    const [{ data: p }, { data: ch }, { data: pb }] = await Promise.all([
+    const [{ data: p }, { data: ch }, { data: ds }, { data: pb }] = await Promise.all([
       supabase.from('propuestas_cheques').select('*').eq('id', id).single(),
       supabase.from('cheques').select('*').eq('propuesta_id', id).order('vencimiento'),
+      supabase.from('propuestas_cheques_detalle').select('*').eq('propuesta_id', id).order('vencimiento'),
       supabase.from('clientes_problemas').select('cuit').eq('activo', true),
     ]);
     setProp(p as any);
     setCheques((ch as any) ?? []);
+    setDetalleSnap((ds as any) ?? []);
     setCuitsProblema(new Set(((pb as any) ?? []).map((x: any) => x.cuit)));
     setLoading(false);
   }
   useEffect(() => { load(); }, [id]);
 
-  const resumen = useMemo(() =>
+  // ¿La propuesta está finalizada y tiene snapshot?
+  const usaSnapshot = !!(prop?.snap_finalizada_en);
+
+  // Resumen "en vivo" desde los cheques vinculados (para estados no finalizados)
+  const resumenLive = useMemo(() =>
     prop ? calcularResumen(cheques, prop.fecha_venta, prop.tasa) : null,
     [cheques, prop?.fecha_venta, prop?.tasa]
   );
+
+  // Resumen efectivo: snapshot si está finalizada, en vivo si no
+  const resumen = useMemo(() => {
+    if (!prop) return null;
+    if (usaSnapshot) {
+      return {
+        cantidad: prop.snap_cantidad ?? 0,
+        total_a_vender: Number(prop.snap_total_a_vender ?? 0),
+        aproximado_a_percibir: Number(prop.snap_aproximado_a_percibir ?? 0),
+        costo_aproximado: Number(prop.snap_costo_aproximado ?? 0),
+        plazo_promedio: prop.snap_plazo_promedio,
+        cft_aproximado_pct: prop.snap_cft_pct != null ? Number(prop.snap_cft_pct) : null,
+      };
+    }
+    return resumenLive;
+  }, [prop, usaSnapshot, resumenLive]);
 
   async function actualizar(cambios: Partial<Propuesta>) {
     if (!prop) return;
     setSaving(true);
     await supabase.from('propuestas_cheques').update(cambios).eq('id', prop.id);
-    setProp({ ...prop, ...cambios } as any);
+    const nuevo = { ...prop, ...cambios } as Propuesta;
+    setProp(nuevo);
     setSaving(false);
+
+    // Auto-snapshot: si la propuesta pasa a "finalizada" y todavía no tiene snapshot,
+    // congelamos los datos automáticamente.
+    if (cambios.estado === 'finalizada' && !nuevo.snap_finalizada_en) {
+      await ejecutarSnapshot(true);
+    }
+  }
+
+  async function ejecutarSnapshot(silencioso: boolean) {
+    if (!prop) return;
+    setSnapshotting(true);
+    try {
+      await generarSnapshot(supabase, prop.id);
+      await load();
+      if (!silencioso) alert('Snapshot regenerado correctamente.');
+    } catch (e: any) {
+      alert('Error generando snapshot: ' + (e?.message || e));
+    } finally {
+      setSnapshotting(false);
+    }
+  }
+
+  async function regenerarSnapshotConfirm() {
+    if (!confirm(
+      'Regenerar el snapshot toma los cheques actualmente vinculados a esta propuesta ' +
+      'y reemplaza los datos congelados.\n\n¿Continuar?'
+    )) return;
+    await ejecutarSnapshot(false);
   }
 
   async function quitarCheque(c: Cheque) {
@@ -95,15 +157,24 @@ export default function PropuestaDetallePage() {
     // Helper: convertir ISO yyyy-mm-dd a Date local (sin desplazamiento de zona horaria)
     const toDate = (iso: string | null) => iso ? new Date(iso + 'T00:00:00') : null;
 
-    // Hoja 1: cheques (sólo campos solicitados)
-    const detalleRows = cheques.map((c) => ({
-      'Vencimiento':   toDate(c.vencimiento),
-      'Asignación':    c.asignacion ?? '',
-      'Importe Total': c.importe,
-      'Librador':      c.librador ?? '',
-      'CUIT':          c.cuit ?? '',
-      'Status':        c.status ?? '',
-    }));
+    // Fuente del detalle: snapshot si está finalizada, cheques en vivo en caso contrario
+    const detalleRows = usaSnapshot
+      ? detalleSnap.map((c) => ({
+          'Vencimiento':   toDate(c.vencimiento),
+          'Asignación':    c.asignacion ?? '',
+          'Importe Total': Number(c.importe ?? 0),
+          'Librador':      c.librador ?? '',
+          'CUIT':          c.cuit ?? '',
+          'Status':        c.status ?? '',
+        }))
+      : cheques.map((c) => ({
+          'Vencimiento':   toDate(c.vencimiento),
+          'Asignación':    c.asignacion ?? '',
+          'Importe Total': c.importe,
+          'Librador':      c.librador ?? '',
+          'CUIT':          c.cuit ?? '',
+          'Status':        c.status ?? '',
+        }));
 
     // Hoja 2: resumen
     const resumenRows = [
@@ -158,9 +229,20 @@ export default function PropuestaDetallePage() {
     <AppShell>
       <TopBar
         titulo={prop.nombre}
-        subtitulo={`Propuesta de venta de cheques · ${prop.estado}${saving ? ' · guardando...' : ''}`}
+        subtitulo={`Propuesta de venta de cheques · ${prop.estado}${usaSnapshot ? ' · congelada' : ''}${saving ? ' · guardando...' : ''}${snapshotting ? ' · generando snapshot...' : ''}`}
         actions={<>
           <Link href="/tesoreria/venta-cheques" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>
+          {usaSnapshot && (
+            <button
+              onClick={regenerarSnapshotConfirm}
+              className="btn-ghost"
+              disabled={snapshotting}
+              title="Vuelve a tomar los cheques actualmente vinculados y reemplaza el snapshot"
+            >
+              {snapshotting ? <Loader2 size={14} className="animate-spin"/> : <RefreshCcw size={14}/>}
+              Regenerar snapshot
+            </button>
+          )}
           <button onClick={descargarExcel} className="btn-primary"><FileDown size={14}/> Descargar Excel</button>
         </>}
       />
@@ -205,7 +287,16 @@ export default function PropuestaDetallePage() {
         {/* RESUMEN */}
         {resumen && (
           <div className="card p-5">
-            <h3 className="font-medium mb-3 text-sm">Resumen de la operación</h3>
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="font-medium text-sm">
+                Resumen de la operación
+                {usaSnapshot && (
+                  <span className="ml-2 inline-flex items-center gap-1 text-xs text-muted">
+                    <Lock size={12}/> congelado el {fmtFecha(prop.snap_finalizada_en?.slice(0, 10) ?? null)}
+                  </span>
+                )}
+              </h3>
+            </div>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
               <Kpi label="Cantidad de valores" value={fmtNum(resumen.cantidad)} />
               <Kpi label="Plazo promedio" value={resumen.plazo_promedio != null ? `${resumen.plazo_promedio} días` : '-'} />
@@ -216,15 +307,77 @@ export default function PropuestaDetallePage() {
               <Kpi label="Tasa" value={prop.tasa != null ? `${prop.tasa}%` : '-'} />
               <Kpi label="Fecha de venta" value={fmtFecha(prop.fecha_venta)} />
             </div>
-            {(prop.fecha_venta == null || prop.tasa == null) && (
+            {!usaSnapshot && (prop.fecha_venta == null || prop.tasa == null) && (
               <div className="mt-3 text-xs text-warning bg-warning/10 p-2 rounded">
                 Cargá fecha de venta y tasa para calcular descuentos, costo aproximado y CFT.
+              </div>
+            )}
+            {usaSnapshot && cheques.length !== (prop.snap_cantidad ?? 0) && (
+              <div className="mt-3 text-xs text-muted bg-surface-2 p-2 rounded">
+                Esta propuesta está congelada con {prop.snap_cantidad} cheque{prop.snap_cantidad === 1 ? '' : 's'} ({fmtMoney(Number(prop.snap_total_a_vender ?? 0))}).
+                Actualmente hay {cheques.length} cheque{cheques.length === 1 ? '' : 's'} vinculado{cheques.length === 1 ? '' : 's'} en la cartera.
+                Si querés actualizar el snapshot con los cheques actuales, usá <strong>Regenerar snapshot</strong>.
               </div>
             )}
           </div>
         )}
 
         {/* DETALLE DE CHEQUES */}
+        {usaSnapshot ? (
+          <div className="card overflow-hidden">
+            <div className="px-4 py-3 border-b border-border flex items-center justify-between">
+              <div className="text-sm font-medium flex items-center gap-2">
+                <Lock size={14}/> Cheques de la propuesta ({detalleSnap.length}) · congelados
+              </div>
+            </div>
+            {detalleSnap.length === 0 ? (
+              <div className="p-10 text-center text-muted text-sm">
+                El snapshot no tiene cheques registrados.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="tbl min-w-[1100px]">
+                  <thead>
+                    <tr>
+                      <th>Vencimiento</th>
+                      <th>Asignación</th>
+                      <th className="text-right">Importe</th>
+                      <th>Días</th>
+                      <th>Descuento</th>
+                      <th className="text-right">A percibir</th>
+                      <th>Librador</th>
+                      <th>Banco</th>
+                      <th>CUIT</th>
+                      <th>Status</th>
+                      <th>Observación</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {detalleSnap.map((c) => {
+                      const enProblema = c.cuit && cuitsProblema.has(c.cuit);
+                      const desc = c.descuento_factor;
+                      return (
+                        <tr key={c.id} className={enProblema ? 'bg-warning/5' : ''}>
+                          <td className="whitespace-nowrap text-sm">{fmtFecha(c.vencimiento)}</td>
+                          <td className="text-xs">{c.asignacion ?? '-'}</td>
+                          <td className="text-right text-sm">{fmtMoney(Number(c.importe ?? 0))}</td>
+                          <td className="text-xs text-muted">{c.dias ?? '-'}</td>
+                          <td className="text-xs">{desc != null ? `${(Number(desc) * 100).toFixed(2)}%` : '-'}</td>
+                          <td className="text-right text-sm">{c.a_percibir != null ? fmtMoney(Number(c.a_percibir)) : '-'}</td>
+                          <td className="text-xs max-w-48 truncate">{c.librador ?? '-'}</td>
+                          <td className="text-xs max-w-40 truncate">{c.banco ?? '-'}</td>
+                          <td className="text-xs">{c.cuit ?? '-'}</td>
+                          <td><span className="chip bg-surface-2 text-text">{c.status ?? '-'}</span></td>
+                          <td className="text-xs">{enProblema ? <span className="text-warning">Problemas para negociar</span> : (c.observaciones ?? '-')}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        ) : (
         <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <div className="text-sm font-medium">Cheques de la propuesta ({cheques.length})</div>
@@ -281,6 +434,7 @@ export default function PropuestaDetallePage() {
             </div>
           )}
         </div>
+        )}
 
         <div className="flex justify-end">
           <button onClick={eliminarPropuesta} className="btn-ghost text-danger text-sm"><Trash2 size={14}/> Eliminar propuesta</button>
