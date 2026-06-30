@@ -6,11 +6,11 @@ import { useEffect, useState } from 'react';
 import {
   BookOpen, Building2, ChevronDown, ChevronLeft, ChevronRight,
   FileSpreadsheet, FileText, FolderArchive, LayoutDashboard, LogOut, Settings, Wallet, Banknote,
-  Receipt, Zap,
+  Receipt, Zap, TrendingUp,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-type Item = { href: string; label: string; icon: any; children?: Item[] };
+type Item = { href: string; label: string; icon: any; children?: Item[]; soloAdmin?: boolean };
 
 const items: Item[] = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
@@ -32,6 +32,9 @@ const items: Item[] = [
       { href: '/tesoreria/venta-cheques', label: 'Venta de cheques', icon: Receipt },
     ],
   },
+  // Módulo financiero (CFPP) — solo visible para rol admin
+  { href: '/financiamiento', label: 'Financiamiento', icon: TrendingUp, soloAdmin: true },
+
   { href: '/manuales',  label: 'Manuales y Capacitaciones', icon: BookOpen },
   { href: '/repositorio', label: 'Repositorio', icon: FolderArchive },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
@@ -44,9 +47,10 @@ export default function Sidebar({ rol }: { rol?: string | null }) {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
 
   // El rol "ventas" solo ve la sección Repositorio
+  // Los ítems con soloAdmin solo se muestran si rol === 'admin'
   const visibleItems = rol === 'ventas'
     ? items.filter((it) => it.href === '/repositorio')
-    : items;
+    : items.filter((it) => !it.soloAdmin || rol === 'admin');
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('deam.sidebar') === '1');
