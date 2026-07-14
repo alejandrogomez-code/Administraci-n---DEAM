@@ -1,11 +1,10 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  AlertTriangle, ArrowLeft, ChevronDown, ChevronRight,
-  Copy, Download, HelpCircle, Loader2, Plus, RefreshCcw, Trash2, Upload, X,
+  AlertTriangle, ChevronDown, ChevronRight, Copy, Download,
+  Loader2, Plus, RefreshCcw, Trash2,
 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
@@ -15,18 +14,29 @@ import {
   parseNum, fmtPct, fmtMoney, fmtPpts, fmtNumLocal,
   convertirATEA,
   calcularTasaDescuentoCheque, calcularTEACheque,
-  calcularPorMes, calcularEjercicio,
+  calcularPorMes, calcularEjercicio, calcularTasaReferencia,
   calcularConcentracion, calcularPorTipo,
 } from '@/lib/cfpp/calculos';
 import {
-  TIPOS_FUENTE, TIPOS_TASA,
+  TIPOS_FUENTE, TIPOS_TASA, PERFILES_RIESGO,
   type Ejercicio, type Mes, type Fuente, type ChequeOp, type Benchmarks,
-  type TipoFuente, type TipoTasa, type Moneda,
+  type TipoFuente, type TipoTasa, type Moneda, type PerfilRiesgo,
 } from '@/lib/cfpp/types';
 
 type Tab = 'datos' | 'resultados' | 'ayuda';
 
-const EJERCICIOS_DEFAULT: Ejercicio[] = ['2025-2026', '2026-2027'];
+const EJERCICIOS_DEFAULT: Ejercicio[] = ['2026-2027'];
+
+const BENCHMARKS_VACIO = (ej: Ejercicio): Benchmarks => ({
+  ejercicio: ej,
+  inflacion: null,
+  devaluacion: null,
+  badlar: null,
+  sofr: null,
+  riesgo_perfil: 'pyme_buena',
+  riesgo_spread: 3.0,
+  notas: '',
+});
 
 export default function FinanciamientoPage() {
   const supabase = createClient();
@@ -36,26 +46,21 @@ export default function FinanciamientoPage() {
   const [autorizado, setAutorizado] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
 
-  const [ejercicio, setEjercicio] = useState<Ejercicio>('2025-2026');
+  const [ejercicio, setEjercicio] = useState<Ejercicio>('2026-2027');
   const [tab, setTab] = useState<Tab>('datos');
   const [mesFiltro, setMesFiltro] = useState<string>('');
 
   const [fuentes, setFuentes] = useState<Fuente[]>([]);
   const [cheques, setCheques] = useState<ChequeOp[]>([]);
-  const [benchmarks, setBenchmarks] = useState<Benchmarks>({
-    ejercicio: '2025-2026', inflacion: null, devaluacion: null, badlar: null, notas: '',
-  });
+  const [benchmarks, setBenchmarks] = useState<Benchmarks>(BENCHMARKS_VACIO('2026-2027'));
   const [loading, setLoading] = useState(true);
 
-  // ====== Guard de acceso: solo admin ======
+  // ====== Guard: solo admin ======
   useEffect(() => {
     let active = true;
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) {
-        if (active) { setReady(true); setAutorizado(false); }
-        return;
-      }
+      if (!user) { if (active) { setReady(true); setAutorizado(false); } return; }
       const { data: prof } = await supabase.from('profiles').select('rol').eq('id', user.id).single();
       if (!active) return;
       const ok = (prof as any)?.rol === 'admin';
@@ -67,7 +72,6 @@ export default function FinanciamientoPage() {
     return () => { active = false; };
   }, []);
 
-  // ====== Carga de datos ======
   async function loadData(ej: Ejercicio) {
     if (!autorizado || !userId) return;
     setLoading(true);
@@ -81,9 +85,14 @@ export default function FinanciamientoPage() {
     setFuentes((fs as any) ?? []);
     setCheques((chs as any) ?? []);
     if (bm) {
-      setBenchmarks(bm as any);
+      // Asegurar defaults en campos nuevos que podrían venir null
+      const withDefaults: Benchmarks = {
+        ...(bm as any),
+        riesgo_perfil: (bm as any).riesgo_perfil ?? 'pyme_buena',
+      };
+      setBenchmarks(withDefaults);
     } else {
-      setBenchmarks({ ejercicio: ej, inflacion: null, devaluacion: null, badlar: null, notas: '' });
+      setBenchmarks(BENCHMARKS_VACIO(ej));
     }
     setLoading(false);
   }
@@ -92,23 +101,16 @@ export default function FinanciamientoPage() {
     if (autorizado && userId) loadData(ejercicio);
   }, [autorizado, userId, ejercicio]);
 
-  // ====== Acciones sobre fuentes ======
+  // ====== Fuentes ======
   async function agregarFuente() {
     if (!userId) return;
     const meses = mesesDeEjercicio(ejercicio);
     const mesDefault = mesFiltro || meses[0];
     const nueva = {
-      ejercicio,
-      mes: mesDefault,
-      tipo: 'prestamo' as TipoFuente,
-      descripcion: '',
-      moneda: 'ARS' as Moneda,
-      saldo: null,
-      tipo_tasa: 'tna_vencida' as TipoTasa,
-      tasa: null,
-      plazo_dias: null,
-      notas: '',
-      user_id: userId,
+      ejercicio, mes: mesDefault, tipo: 'prestamo' as TipoFuente,
+      descripcion: '', moneda: 'ARS' as Moneda, saldo: null,
+      tipo_tasa: 'tna_vencida' as TipoTasa, tasa: null, plazo_dias: null,
+      notas: '', user_id: userId,
     };
     const { data, error } = await supabase.from('cfpp_fuentes').insert(nueva).select('*').single();
     if (error) { alert('Error al crear: ' + error.message); return; }
@@ -134,10 +136,7 @@ export default function FinanciamientoPage() {
     if (!f) return;
     const meses = mesesDeEjercicio(ejercicio);
     const idx = meses.indexOf(f.mes);
-    if (idx === -1 || idx === meses.length - 1) {
-      alert('No hay mes siguiente dentro de este ejercicio.');
-      return;
-    }
+    if (idx === -1 || idx === meses.length - 1) { alert('No hay mes siguiente en este ejercicio.'); return; }
     const { id: _, created_at, updated_at, ...rest } = f as any;
     const nueva = { ...rest, mes: meses[idx + 1] };
     const { data, error } = await supabase.from('cfpp_fuentes').insert(nueva).select('*').single();
@@ -146,13 +145,13 @@ export default function FinanciamientoPage() {
   }
 
   async function duplicarMesAnterior() {
-    if (!mesFiltro) { alert('Primero filtrá por el mes destino al cual querés copiar las fuentes.'); return; }
+    if (!mesFiltro) { alert('Primero filtrá por el mes destino.'); return; }
     const meses = mesesDeEjercicio(ejercicio);
     const idx = meses.indexOf(mesFiltro);
-    if (idx <= 0) { alert('No hay mes anterior dentro de este ejercicio.'); return; }
+    if (idx <= 0) { alert('No hay mes anterior en este ejercicio.'); return; }
     const mesAnterior = meses[idx - 1];
     const fuentesAnt = fuentes.filter(f => f.mes === mesAnterior);
-    if (fuentesAnt.length === 0) { alert(`No hay fuentes cargadas en ${nombreMesAbr(mesAnterior)}.`); return; }
+    if (fuentesAnt.length === 0) { alert(`No hay fuentes en ${nombreMesAbr(mesAnterior)}.`); return; }
     if (!confirm(`Copiar ${fuentesAnt.length} fuente(s) de ${nombreMesAbr(mesAnterior)} a ${nombreMesAbr(mesFiltro)}?`)) return;
     if (!userId) return;
     const nuevas = fuentesAnt.map(f => {
@@ -164,7 +163,7 @@ export default function FinanciamientoPage() {
     setFuentes(prev => [...prev, ...(data as any[])]);
   }
 
-  // ====== Acciones sobre cheques ======
+  // ====== Cheques ======
   async function agregarCheque() {
     if (!userId) return;
     const nuevo = {
@@ -194,12 +193,14 @@ export default function FinanciamientoPage() {
     if (!userId) return;
     const nuevo = { ...benchmarks, ...cambios };
     setBenchmarks(nuevo);
-    // upsert
     const payload = {
       ejercicio,
       inflacion: nuevo.inflacion,
       devaluacion: nuevo.devaluacion,
       badlar: nuevo.badlar,
+      sofr: nuevo.sofr,
+      riesgo_perfil: nuevo.riesgo_perfil,
+      riesgo_spread: nuevo.riesgo_spread,
       notas: nuevo.notas ?? '',
       user_id: userId,
     };
@@ -209,7 +210,6 @@ export default function FinanciamientoPage() {
     if (error) alert('Error al guardar benchmarks: ' + error.message);
   }
 
-  // ====== Backup ======
   function exportarJSON() {
     const data = { ejercicio, fuentes, cheques, benchmarks };
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -221,7 +221,6 @@ export default function FinanciamientoPage() {
     URL.revokeObjectURL(url);
   }
 
-  // ====== Filtro mensual ======
   const fuentesFiltradas = useMemo(() => {
     const arr = mesFiltro ? fuentes.filter(f => f.mes === mesFiltro) : fuentes;
     return [...arr].sort((a, b) => {
@@ -230,14 +229,12 @@ export default function FinanciamientoPage() {
     });
   }, [fuentes, mesFiltro]);
 
-  const chequesOrdenados = useMemo(() => {
-    return [...cheques].sort((a, b) => (a.fecha || '').localeCompare(b.fecha || ''));
-  }, [cheques]);
+  const chequesOrdenados = useMemo(() =>
+    [...cheques].sort((a, b) => (a.fecha || '').localeCompare(b.fecha || '')),
+    [cheques]
+  );
 
-  // ====== Render ======
-  if (!ready) {
-    return <AppShell><div className="p-10 text-center text-muted">Cargando...</div></AppShell>;
-  }
+  if (!ready) return <AppShell><div className="p-10 text-center text-muted">Cargando...</div></AppShell>;
 
   if (!autorizado) {
     return (
@@ -265,26 +262,17 @@ export default function FinanciamientoPage() {
         subtitulo="Financiamiento · Análisis del CFPP por ejercicio"
         actions={
           <>
-            <select
-              value={ejercicio}
-              onChange={e => setEjercicio(e.target.value as Ejercicio)}
-              className="input"
-              style={{ width: 'auto' }}
-            >
+            <select value={ejercicio} onChange={e => setEjercicio(e.target.value as Ejercicio)}
+              className="input" style={{ width: 'auto' }}>
               {EJERCICIOS_DEFAULT.map(e => <option key={e} value={e}>Ejercicio {e}</option>)}
             </select>
-            <button onClick={exportarJSON} className="btn-secondary">
-              <Download size={14} /> Backup
-            </button>
-            <button onClick={() => loadData(ejercicio)} className="btn-ghost" title="Recargar">
-              <RefreshCcw size={14} />
-            </button>
+            <button onClick={exportarJSON} className="btn-secondary"><Download size={14} /> Backup</button>
+            <button onClick={() => loadData(ejercicio)} className="btn-ghost" title="Recargar"><RefreshCcw size={14} /></button>
           </>
         }
       />
 
       <div className="p-6 space-y-4">
-        {/* Tabs */}
         <div className="flex gap-1 border-b border-border">
           <TabButton active={tab === 'datos'} onClick={() => setTab('datos')}>Datos</TabButton>
           <TabButton active={tab === 'resultados'} onClick={() => setTab('resultados')}>Resultados</TabButton>
@@ -300,30 +288,20 @@ export default function FinanciamientoPage() {
         {!loading && tab === 'datos' && (
           <DatosTab
             ejercicio={ejercicio}
-            mesFiltro={mesFiltro}
-            setMesFiltro={setMesFiltro}
-            fuentes={fuentesFiltradas}
-            cheques={chequesOrdenados}
+            mesFiltro={mesFiltro} setMesFiltro={setMesFiltro}
+            fuentes={fuentesFiltradas} cheques={chequesOrdenados}
             benchmarks={benchmarks}
-            onAgregarFuente={agregarFuente}
-            onActualizarFuente={actualizarFuente}
-            onEliminarFuente={eliminarFuente}
-            onDuplicarFuente={duplicarFuente}
+            onAgregarFuente={agregarFuente} onActualizarFuente={actualizarFuente}
+            onEliminarFuente={eliminarFuente} onDuplicarFuente={duplicarFuente}
             onDuplicarMesAnterior={duplicarMesAnterior}
-            onAgregarCheque={agregarCheque}
-            onActualizarCheque={actualizarCheque}
+            onAgregarCheque={agregarCheque} onActualizarCheque={actualizarCheque}
             onEliminarCheque={eliminarCheque}
             onGuardarBenchmarks={guardarBenchmarks}
           />
         )}
 
         {!loading && tab === 'resultados' && (
-          <ResultadosTab
-            ejercicio={ejercicio}
-            fuentes={fuentes}
-            cheques={cheques}
-            benchmarks={benchmarks}
-          />
+          <ResultadosTab ejercicio={ejercicio} fuentes={fuentes} cheques={cheques} benchmarks={benchmarks} />
         )}
 
         {!loading && tab === 'ayuda' && <AyudaTab />}
@@ -333,19 +311,15 @@ export default function FinanciamientoPage() {
 }
 
 // ============================================================
-// COMPONENTES INTERNOS
+// COMPONENTES
 // ============================================================
 
 function TabButton({ active, onClick, children }: { active: boolean; onClick: () => void; children: React.ReactNode }) {
   return (
-    <button
-      onClick={onClick}
+    <button onClick={onClick}
       className={`px-4 py-2.5 text-sm font-medium border-b-2 transition ${
-        active
-          ? 'border-primary text-primary'
-          : 'border-transparent text-muted hover:text-text'
-      }`}
-    >
+        active ? 'border-primary text-primary' : 'border-transparent text-muted hover:text-text'
+      }`}>
       {children}
     </button>
   );
@@ -354,11 +328,8 @@ function TabButton({ active, onClick, children }: { active: boolean; onClick: ()
 // ====== TAB: DATOS ======
 function DatosTab(props: {
   ejercicio: Ejercicio;
-  mesFiltro: string;
-  setMesFiltro: (m: string) => void;
-  fuentes: Fuente[];
-  cheques: ChequeOp[];
-  benchmarks: Benchmarks;
+  mesFiltro: string; setMesFiltro: (m: string) => void;
+  fuentes: Fuente[]; cheques: ChequeOp[]; benchmarks: Benchmarks;
   onAgregarFuente: () => void;
   onActualizarFuente: (id: string, c: Partial<Fuente>) => void;
   onEliminarFuente: (id: string) => void;
@@ -373,6 +344,14 @@ function DatosTab(props: {
   const [avanzado, setAvanzado] = useState(false);
   const meses = mesesDeEjercicio(ejercicio);
 
+  function onChangePerfilRiesgo(perfil: PerfilRiesgo) {
+    const preset = PERFILES_RIESGO.find(p => p.v === perfil);
+    const nuevoSpread = preset && preset.spread !== null ? preset.spread : benchmarks.riesgo_spread;
+    props.onGuardarBenchmarks({ riesgo_perfil: perfil, riesgo_spread: nuevoSpread });
+  }
+
+  const ref = calcularTasaReferencia(benchmarks);
+
   return (
     <div className="space-y-4">
       {/* ---- Card: Fuentes ---- */}
@@ -383,12 +362,7 @@ function DatosTab(props: {
             <p className="text-xs text-muted mt-0.5">Préstamos, adelantos, comex, leasing y otras deudas con costo financiero</p>
           </div>
           <div className="flex gap-2 items-center flex-wrap">
-            <select
-              value={mesFiltro}
-              onChange={e => setMesFiltro(e.target.value)}
-              className="input"
-              style={{ width: 160 }}
-            >
+            <select value={mesFiltro} onChange={e => setMesFiltro(e.target.value)} className="input" style={{ width: 160 }}>
               <option value="">Todos los meses</option>
               {meses.map(m => <option key={m} value={m}>{nombreMesAbr(m)}</option>)}
             </select>
@@ -427,14 +401,10 @@ function DatosTab(props: {
               </thead>
               <tbody>
                 {fuentes.map(f => (
-                  <FilaFuente
-                    key={f.id}
-                    f={f}
-                    meses={meses}
+                  <FilaFuente key={f.id} f={f} meses={meses}
                     onUpdate={props.onActualizarFuente}
                     onEliminar={props.onEliminarFuente}
-                    onDuplicar={props.onDuplicarFuente}
-                  />
+                    onDuplicar={props.onDuplicarFuente} />
                 ))}
               </tbody>
             </table>
@@ -459,9 +429,7 @@ function DatosTab(props: {
         </div>
 
         {cheques.length === 0 ? (
-          <div className="p-10 text-center text-muted">
-            No hay operaciones cargadas.
-          </div>
+          <div className="p-10 text-center text-muted">No hay operaciones cargadas.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="tbl">
@@ -479,12 +447,9 @@ function DatosTab(props: {
               </thead>
               <tbody>
                 {cheques.map(c => (
-                  <FilaCheque
-                    key={c.id}
-                    c={c}
+                  <FilaCheque key={c.id} c={c}
                     onUpdate={props.onActualizarCheque}
-                    onEliminar={props.onEliminarCheque}
-                  />
+                    onEliminar={props.onEliminarCheque} />
                 ))}
               </tbody>
             </table>
@@ -492,14 +457,81 @@ function DatosTab(props: {
         )}
       </div>
 
-      {/* ---- Card: Benchmarks ---- */}
+      {/* ---- Card: Referencia internacional (SOFR + Riesgo) ---- */}
+      <div className="card p-5">
+        <div className="mb-3">
+          <h2 className="text-base font-semibold">Referencia internacional (SOFR + Riesgo Empresario)</h2>
+          <p className="text-xs text-muted mt-0.5">
+            Tasa de referencia para una empresa privada con acceso a mercado internacional. Sirve para dimensionar el "costo país" implícito de tu financiamiento.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <CampoNum
+            label="SOFR actual %"
+            value={benchmarks.sofr}
+            onChange={v => props.onGuardarBenchmarks({ sofr: v })}
+            placeholder="ej: 4,30"
+          />
+          <label className="block">
+            <span className="text-xs text-muted block mb-1 font-medium">Perfil de riesgo</span>
+            <select
+              value={benchmarks.riesgo_perfil}
+              onChange={e => onChangePerfilRiesgo(e.target.value as PerfilRiesgo)}
+              className="input"
+            >
+              {PERFILES_RIESGO.map(p => (
+                <option key={p.v} value={p.v}>
+                  {p.l}{p.spread !== null ? ` (SOFR + ${p.spread}%)` : ''}
+                </option>
+              ))}
+            </select>
+            <p className="text-xs text-muted mt-1">
+              {PERFILES_RIESGO.find(p => p.v === benchmarks.riesgo_perfil)?.desc}
+            </p>
+          </label>
+          <CampoNum
+            label={`Spread sobre SOFR %${benchmarks.riesgo_perfil !== 'personalizado' ? ' (auto)' : ''}`}
+            value={benchmarks.riesgo_spread}
+            onChange={v => props.onGuardarBenchmarks({ riesgo_spread: v, riesgo_perfil: 'personalizado' })}
+            placeholder="ej: 3,00"
+          />
+        </div>
+
+        {/* Tasa referencia calculada */}
+        <div className="mt-4 p-3 rounded-lg bg-surface-2 border border-border">
+          <div className="text-xs text-muted mb-1 font-medium">Tasa referencia calculada</div>
+          <div className="flex gap-6 flex-wrap items-baseline">
+            <div>
+              <span className="text-xs text-muted mr-2">USD:</span>
+              <span className="text-lg font-bold tabular-nums" style={{ color: 'rgb(var(--accent))' }}>
+                {fmtPct(ref.usd)}
+              </span>
+            </div>
+            <div>
+              <span className="text-xs text-muted mr-2">ARS equivalente:</span>
+              <span className="text-lg font-bold tabular-nums" style={{ color: 'rgb(var(--accent))' }}>
+                {fmtPct(ref.arsEquiv)}
+              </span>
+              {ref.arsEquiv === null && ref.usd !== null && (
+                <span className="text-xs text-muted ml-2">(cargá devaluación esperada abajo para calcular)</span>
+              )}
+            </div>
+          </div>
+          <p className="text-xs text-muted mt-2">
+            <b>ARS equivalente</b> = (1 + Tasa USD) × (1 + Devaluación esperada) − 1. Convierte la tasa internacional a su equivalente en pesos.
+          </p>
+        </div>
+      </div>
+
+      {/* ---- Card: Inflación esperada ---- */}
       <div className="card p-5">
         <div className="mb-4">
           <h2 className="text-base font-semibold">Inflación esperada del ejercicio</h2>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <CampoNum
-            label="Inflación esperada anual % (REM-BCRA o IPC realizado si el ejercicio cerró)"
+            label="Inflación esperada anual % (REM-BCRA o IPC realizado)"
             value={benchmarks.inflacion}
             onChange={v => props.onGuardarBenchmarks({ inflacion: v })}
             placeholder="ej: 35,0"
@@ -512,10 +544,8 @@ function DatosTab(props: {
           />
         </div>
 
-        <button
-          onClick={() => setAvanzado(a => !a)}
-          className="text-xs text-muted hover:text-text mt-4 flex items-center gap-1"
-        >
+        <button onClick={() => setAvanzado(a => !a)}
+          className="text-xs text-muted hover:text-text mt-4 flex items-center gap-1">
           {avanzado ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           Avanzado: otros benchmarks (opcionales)
         </button>
@@ -529,7 +559,7 @@ function DatosTab(props: {
                 onChange={v => props.onGuardarBenchmarks({ devaluacion: v })}
                 placeholder="ej: 28,0"
               />
-              <p className="text-xs text-muted mt-1">Solo si tenés deuda en USD. Sirve para comparar el CFPP USD contra la devaluación del peso.</p>
+              <p className="text-xs text-muted mt-1">Se usa para convertir la tasa referencia USD a ARS equivalente y para el spread USD.</p>
             </div>
             <div>
               <CampoNum
@@ -548,11 +578,8 @@ function DatosTab(props: {
 }
 
 // ====== Fila fuente ======
-function FilaFuente({
-  f, meses, onUpdate, onEliminar, onDuplicar,
-}: {
-  f: Fuente;
-  meses: Mes[];
+function FilaFuente({ f, meses, onUpdate, onEliminar, onDuplicar }: {
+  f: Fuente; meses: Mes[];
   onUpdate: (id: string, c: Partial<Fuente>) => void;
   onEliminar: (id: string) => void;
   onDuplicar: (id: string) => void;
@@ -574,13 +601,7 @@ function FilaFuente({
           {TIPOS_FUENTE.map(t => <option key={t.v} value={t.v}>{t.l}</option>)}
         </select>
       </td>
-      <td>
-        <InputTexto
-          value={f.descripcion}
-          onCommit={v => onUpdate(f.id, { descripcion: v })}
-          placeholder="Banco / detalle"
-        />
-      </td>
+      <td><InputTexto value={f.descripcion} onCommit={v => onUpdate(f.id, { descripcion: v })} placeholder="Banco / detalle" /></td>
       <td>
         <select className="input" style={{ padding: '4px 6px', fontSize: 12 }}
           value={f.moneda} onChange={e => onUpdate(f.id, { moneda: e.target.value as Moneda })}>
@@ -588,13 +609,7 @@ function FilaFuente({
           <option value="USD">USD</option>
         </select>
       </td>
-      <td className="text-right">
-        <InputNum
-          value={f.saldo}
-          onCommit={v => onUpdate(f.id, { saldo: v })}
-          placeholder="0"
-        />
-      </td>
+      <td className="text-right"><InputNum value={f.saldo} onCommit={v => onUpdate(f.id, { saldo: v })} placeholder="0" /></td>
       <td>
         <select className="input" style={{ padding: '4px 6px', fontSize: 12 }}
           value={f.tipo_tasa} onChange={e => onUpdate(f.id, { tipo_tasa: e.target.value as TipoTasa })}>
@@ -602,12 +617,7 @@ function FilaFuente({
         </select>
       </td>
       <td className="text-right">
-        <InputNum
-          value={f.tasa}
-          onCommit={v => onUpdate(f.id, { tasa: v })}
-          placeholder="0,00"
-          decimals={4}
-        />
+        <InputNum value={f.tasa} onCommit={v => onUpdate(f.id, { tasa: v })} placeholder="0,00" decimals={4} />
         {showBadge && (
           <div className="text-xs text-accent font-medium mt-0.5 leading-tight">
             = {fmtPct(teaEq)} TEA
@@ -615,21 +625,12 @@ function FilaFuente({
         )}
       </td>
       <td className="text-right">
-        <InputNum
-          value={f.plazo_dias}
-          onCommit={v => onUpdate(f.id, { plazo_dias: v })}
-          placeholder="—"
-          decimals={0}
-        />
+        <InputNum value={f.plazo_dias} onCommit={v => onUpdate(f.id, { plazo_dias: v })} placeholder="—" decimals={0} />
       </td>
       <td>
         <div className="flex gap-1">
-          <button onClick={() => onDuplicar(f.id)} className="btn-ghost p-1" title="Duplicar al mes siguiente">
-            <Copy size={14} />
-          </button>
-          <button onClick={() => onEliminar(f.id)} className="btn-ghost p-1 text-danger" title="Eliminar">
-            <Trash2 size={14} />
-          </button>
+          <button onClick={() => onDuplicar(f.id)} className="btn-ghost p-1" title="Duplicar al mes siguiente"><Copy size={14} /></button>
+          <button onClick={() => onEliminar(f.id)} className="btn-ghost p-1 text-danger" title="Eliminar"><Trash2 size={14} /></button>
         </div>
       </td>
     </tr>
@@ -637,9 +638,7 @@ function FilaFuente({
 }
 
 // ====== Fila cheque ======
-function FilaCheque({
-  c, onUpdate, onEliminar,
-}: {
+function FilaCheque({ c, onUpdate, onEliminar }: {
   c: ChequeOp;
   onUpdate: (id: string, c: Partial<ChequeOp>) => void;
   onEliminar: (id: string) => void;
@@ -649,146 +648,94 @@ function FilaCheque({
   return (
     <tr>
       <td>
-        <input
-          type="date"
-          value={c.fecha || ''}
+        <input type="date" value={c.fecha || ''}
           onChange={e => onUpdate(c.id, { fecha: e.target.value || null })}
-          className="input"
-          style={{ padding: '4px 6px', fontSize: 12 }}
-        />
+          className="input" style={{ padding: '4px 6px', fontSize: 12 }} />
       </td>
-      <td>
-        <InputTexto
-          value={c.entidad}
-          onCommit={v => onUpdate(c.id, { entidad: v })}
-          placeholder="Banco / financiera"
-        />
-      </td>
-      <td className="text-right">
-        <InputNum value={c.bruto} onCommit={v => onUpdate(c.id, { bruto: v })} placeholder="0" />
-      </td>
-      <td className="text-right">
-        <InputNum value={c.neto} onCommit={v => onUpdate(c.id, { neto: v })} placeholder="0" />
-      </td>
-      <td className="text-right">
-        <InputNum value={c.plazo_dias} onCommit={v => onUpdate(c.id, { plazo_dias: v })} placeholder="60" decimals={0} />
-      </td>
-      <td className="text-right text-muted text-sm tabular-nums">
-        {desc !== null ? fmtPct(desc) : '—'}
-      </td>
-      <td className="text-right text-sm tabular-nums" style={{ color: 'rgb(var(--accent))', fontWeight: 500 }}>
-        {tea !== null ? fmtPct(tea) : '—'}
-      </td>
-      <td>
-        <button onClick={() => onEliminar(c.id)} className="btn-ghost p-1 text-danger">
-          <Trash2 size={14} />
-        </button>
-      </td>
+      <td><InputTexto value={c.entidad} onCommit={v => onUpdate(c.id, { entidad: v })} placeholder="Banco / financiera" /></td>
+      <td className="text-right"><InputNum value={c.bruto} onCommit={v => onUpdate(c.id, { bruto: v })} placeholder="0" /></td>
+      <td className="text-right"><InputNum value={c.neto} onCommit={v => onUpdate(c.id, { neto: v })} placeholder="0" /></td>
+      <td className="text-right"><InputNum value={c.plazo_dias} onCommit={v => onUpdate(c.id, { plazo_dias: v })} placeholder="60" decimals={0} /></td>
+      <td className="text-right text-muted text-sm tabular-nums">{desc !== null ? fmtPct(desc) : '—'}</td>
+      <td className="text-right text-sm tabular-nums" style={{ color: 'rgb(var(--accent))', fontWeight: 500 }}>{tea !== null ? fmtPct(tea) : '—'}</td>
+      <td><button onClick={() => onEliminar(c.id)} className="btn-ghost p-1 text-danger"><Trash2 size={14} /></button></td>
     </tr>
   );
 }
 
 // ====== Inputs reusables ======
-function InputTexto({
-  value, onCommit, placeholder,
-}: { value: string | null; onCommit: (v: string) => void; placeholder?: string }) {
+function InputTexto({ value, onCommit, placeholder }: { value: string | null; onCommit: (v: string) => void; placeholder?: string }) {
   const [local, setLocal] = useState<string>(value ?? '');
   useEffect(() => { setLocal(value ?? ''); }, [value]);
   return (
-    <input
-      type="text"
-      value={local}
+    <input type="text" value={local}
       onChange={e => setLocal(e.target.value)}
       onBlur={() => { if (local !== (value ?? '')) onCommit(local); }}
       placeholder={placeholder}
-      className="input"
-      style={{ padding: '4px 6px', fontSize: 12, width: '100%' }}
-    />
+      className="input" style={{ padding: '4px 6px', fontSize: 12, width: '100%' }} />
   );
 }
 
-function InputNum({
-  value, onCommit, placeholder, decimals = 2,
-}: { value: number | null; onCommit: (v: number | null) => void; placeholder?: string; decimals?: number }) {
+function InputNum({ value, onCommit, placeholder, decimals = 2 }: {
+  value: number | null; onCommit: (v: number | null) => void; placeholder?: string; decimals?: number;
+}) {
   const [local, setLocal] = useState<string>(value === null || value === undefined ? '' : fmtNumLocal(value, decimals));
   useEffect(() => {
     setLocal(value === null || value === undefined ? '' : fmtNumLocal(value, decimals));
   }, [value, decimals]);
   return (
-    <input
-      type="text"
-      value={local}
+    <input type="text" value={local}
       onChange={e => setLocal(e.target.value)}
-      onBlur={() => {
-        const parsed = parseNum(local);
-        if (parsed !== value) onCommit(parsed);
-      }}
+      onBlur={() => { const p = parseNum(local); if (p !== value) onCommit(p); }}
       placeholder={placeholder}
-      className="input text-right"
-      style={{ padding: '4px 6px', fontSize: 12, width: '100%' }}
-    />
+      className="input text-right" style={{ padding: '4px 6px', fontSize: 12, width: '100%' }} />
   );
 }
 
-function CampoNum({
-  label, value, onChange, placeholder,
-}: { label: string; value: number | null; onChange: (v: number | null) => void; placeholder?: string }) {
+function CampoNum({ label, value, onChange, placeholder }: {
+  label: string; value: number | null; onChange: (v: number | null) => void; placeholder?: string;
+}) {
   const [local, setLocal] = useState<string>(value === null || value === undefined ? '' : fmtNumLocal(value, 2));
   useEffect(() => { setLocal(value === null || value === undefined ? '' : fmtNumLocal(value, 2)); }, [value]);
   return (
     <label className="block">
       <span className="text-xs text-muted block mb-1 font-medium">{label}</span>
-      <input
-        type="text"
-        value={local}
+      <input type="text" value={local}
         onChange={e => setLocal(e.target.value)}
         onBlur={() => { const p = parseNum(local); if (p !== value) onChange(p); }}
-        placeholder={placeholder}
-        className="input text-right"
-      />
+        placeholder={placeholder} className="input text-right" />
     </label>
   );
 }
 
-function CampoTexto({
-  label, value, onChange, placeholder,
-}: { label: string; value: string; onChange: (v: string) => void; placeholder?: string }) {
+function CampoTexto({ label, value, onChange, placeholder }: {
+  label: string; value: string; onChange: (v: string) => void; placeholder?: string;
+}) {
   const [local, setLocal] = useState<string>(value ?? '');
   useEffect(() => { setLocal(value ?? ''); }, [value]);
   return (
     <label className="block">
       <span className="text-xs text-muted block mb-1 font-medium">{label}</span>
-      <input
-        type="text"
-        value={local}
+      <input type="text" value={local}
         onChange={e => setLocal(e.target.value)}
         onBlur={() => { if (local !== (value ?? '')) onChange(local); }}
-        placeholder={placeholder}
-        className="input"
-      />
+        placeholder={placeholder} className="input" />
     </label>
   );
 }
 
 // ====== TAB: RESULTADOS ======
-function ResultadosTab({
-  ejercicio, fuentes, cheques, benchmarks,
-}: {
-  ejercicio: Ejercicio;
-  fuentes: Fuente[];
-  cheques: ChequeOp[];
-  benchmarks: Benchmarks;
+function ResultadosTab({ ejercicio, fuentes, cheques, benchmarks }: {
+  ejercicio: Ejercicio; fuentes: Fuente[]; cheques: ChequeOp[]; benchmarks: Benchmarks;
 }) {
-  const r = useMemo(
-    () => calcularEjercicio(ejercicio, fuentes, cheques, benchmarks),
-    [ejercicio, fuentes, cheques, benchmarks]
-  );
+  const r = useMemo(() => calcularEjercicio(ejercicio, fuentes, cheques, benchmarks), [ejercicio, fuentes, cheques, benchmarks]);
   const meses = useMemo(() => calcularPorMes(ejercicio, fuentes, cheques), [ejercicio, fuentes, cheques]);
   const concentracion = useMemo(() => calcularConcentracion(ejercicio, fuentes, cheques, 'ARS'), [ejercicio, fuentes, cheques]);
   const porTipo = useMemo(() => calcularPorTipo(ejercicio, fuentes, cheques, 'ARS'), [ejercicio, fuentes, cheques]);
 
   return (
     <div className="space-y-4">
+      {/* KPIs principales */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Kpi label="CFPP nominal ARS" value={fmtPct(r.cfppArs)} sub={r.arsDen > 0 ? `Sobre ${fmtMoney(r.arsDen)} (saldo acum.)` : 'Sin fuentes ARS'} accent />
         <Kpi label="CFPP real ARS" value={fmtPct(r.cfppReal)} sub="Descontando inflación esperada" />
@@ -796,6 +743,7 @@ function ResultadosTab({
         <Kpi label="Plazo promedio ponderado" value={r.plazoArs !== null ? `${Math.round(r.plazoArs)} días` : '—'} sub="Ponderado por saldo" />
       </div>
 
+      {/* Evolución mensual */}
       <div className="card">
         <div className="p-5 border-b border-border">
           <h2 className="text-base font-semibold">Evolución mensual del CFPP</h2>
@@ -829,6 +777,7 @@ function ResultadosTab({
         </div>
       </div>
 
+      {/* Concentración + por tipo */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="card">
           <div className="p-5 border-b border-border">
@@ -893,9 +842,10 @@ function ResultadosTab({
         </div>
       </div>
 
+      {/* Spread vs benchmarks (Argentina) */}
       <div className="card">
         <div className="p-5 border-b border-border">
-          <h2 className="text-base font-semibold">Spread vs benchmarks</h2>
+          <h2 className="text-base font-semibold">Spread vs benchmarks locales</h2>
           <p className="text-xs text-muted">En puntos porcentuales</p>
         </div>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-5">
@@ -903,6 +853,59 @@ function ResultadosTab({
           <Kpi label="Vs Badlar" value={fmtPpts(r.spreadBadlar)} sub="Tu costo extra sobre la tasa de mercado" />
           <Kpi label="Vs devaluación (USD)" value={fmtPpts(r.spreadDevaluacion)} sub="CFPP USD − devaluación esperada" />
         </div>
+      </div>
+
+      {/* Spread vs referencia internacional */}
+      <div className="card">
+        <div className="p-5 border-b border-border">
+          <h2 className="text-base font-semibold">Spread vs referencia internacional (SOFR + Riesgo)</h2>
+          <p className="text-xs text-muted">
+            Cuánto más caro te sale financiarte en Argentina que a una empresa privada con acceso a mercado internacional
+          </p>
+        </div>
+
+        {r.tasaRefUsd === null ? (
+          <div className="p-6 text-sm text-muted text-center">
+            Cargá SOFR y perfil de riesgo en la pestaña <b>Datos</b> para ver este análisis.
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 border-b border-border">
+              <Kpi label="Tasa referencia USD" value={fmtPct(r.tasaRefUsd)} sub={`SOFR + ${fmtPct(benchmarks.riesgo_spread ?? null)} de riesgo`} />
+              <Kpi label="Tasa referencia ARS equivalente" value={fmtPct(r.tasaRefArsEquiv)} sub={r.tasaRefArsEquiv === null ? 'Cargá devaluación esperada' : 'Ajustada por devaluación esperada'} />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-5">
+              <Kpi
+                label="Spread ajustado (recomendado)"
+                value={fmtPpts(r.spreadReferenciaAjustado)}
+                sub="CFPP ARS − Ref ARS equivalente. Aísla el 'costo país' financiero."
+                accent
+              />
+              <Kpi
+                label="Spread crudo"
+                value={fmtPpts(r.spreadReferenciaCrudo)}
+                sub="CFPP ARS − Ref USD. Mezcla monedas: sobrestima el costo real."
+              />
+              <Kpi
+                label="Spread CFPP USD vs ref USD"
+                value={fmtPpts(r.spreadReferenciaUsd)}
+                sub="Solo aplica si tenés deuda en USD"
+              />
+            </div>
+
+            <div className="px-5 pb-5">
+              <div className="p-3 rounded-lg bg-surface-2 border border-border text-xs">
+                <b>Cómo leer estos números:</b>
+                <ul className="mt-2 ml-4 list-disc space-y-1 text-muted">
+                  <li><b>Spread ajustado</b>: es el indicador que refleja el sobrecosto real de tomar deuda en Argentina vs afuera, en términos comparables (misma moneda equivalente).</li>
+                  <li><b>Spread crudo</b>: es el que pediste directamente. Es útil para tener la magnitud absoluta, pero mezcla monedas: parte del "spread" es solo la devaluación esperada, no un sobrecosto real.</li>
+                  <li>Ejemplo: si el spread crudo da 80 p.p. y el ajustado da 50 p.p., significa que ~30 p.p. son "costo de estar en pesos" (devaluación) y ~50 p.p. son el sobrecosto financiero real.</li>
+                </ul>
+              </div>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );
@@ -923,7 +926,7 @@ function AyudaTab() {
   return (
     <div className="space-y-4">
       <div className="card p-5">
-        <h2 className="text-base font-semibold mb-3">Cómo se calcula</h2>
+        <h2 className="text-base font-semibold mb-3">Cómo se calcula el CFPP</h2>
         <p className="text-sm mb-2"><b>CFPP mensual</b> (por moneda):</p>
         <pre className="bg-surface-2 p-3 rounded text-xs font-mono">CFPP_mes = Σ(saldo_i × TEA_i) / Σ(saldo_i)</pre>
         <p className="text-sm mt-3"><b>CFPP del ejercicio</b>: promedio ponderado de los meses, ponderado por saldo total mensual.</p>
@@ -931,17 +934,34 @@ function AyudaTab() {
       </div>
 
       <div className="card p-5">
-        <h2 className="text-base font-semibold mb-3">Conversión de tasas a TEA</h2>
-        <p className="text-sm mb-3">La fórmula del CFPP exige todas las tasas en la misma base. El sistema convierte automáticamente:</p>
-        <table className="tbl">
-          <thead><tr><th>Tipo de tasa</th><th>Fórmula → TEA</th><th>Ejemplo</th></tr></thead>
+        <h2 className="text-base font-semibold mb-3">Referencia internacional (SOFR + Riesgo)</h2>
+        <p className="text-sm">Sirve para dimensionar el sobrecosto de financiarse en Argentina vs empresas con acceso a mercado internacional.</p>
+        <div className="mt-3 text-sm space-y-2">
+          <p><b>Tasa referencia USD</b> = <span className="font-mono">SOFR + spread de riesgo</span></p>
+          <p><b>Tasa referencia ARS equivalente</b> = <span className="font-mono">(1 + Tasa_USD) × (1 + Devaluación esperada) − 1</span></p>
+          <p><b>SOFR</b> (Secured Overnight Financing Rate): tasa de referencia del mercado USD, reemplazó a LIBOR. Consultá en <a href="https://www.newyorkfed.org/markets/reference-rates/sofr" target="_blank" rel="noopener" className="text-primary underline">newyorkfed.org</a> o FRED.</p>
+        </div>
+        <table className="tbl mt-3">
+          <thead><tr><th>Perfil</th><th>Spread</th><th>Referencia USD hoy</th></tr></thead>
           <tbody>
-            <tr><td>TEA (anual efectiva)</td><td className="font-mono">igual</td><td>75% → 75%</td></tr>
+            <tr><td>Empresa muy sólida (AAA/AA)</td><td className="font-mono">SOFR + 1,5%</td><td>~5-7% anual</td></tr>
+            <tr><td>PyME buena</td><td className="font-mono">SOFR + 3%</td><td>~7-8% anual</td></tr>
+            <tr><td>Mayor riesgo</td><td className="font-mono">SOFR + 5%</td><td>~9-10% anual</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="card p-5">
+        <h2 className="text-base font-semibold mb-3">Conversión de tasas a TEA</h2>
+        <table className="tbl">
+          <thead><tr><th>Tipo</th><th>Fórmula → TEA</th><th>Ejemplo</th></tr></thead>
+          <tbody>
+            <tr><td>TEA</td><td className="font-mono">igual</td><td>75% → 75%</td></tr>
             <tr><td>TNA vencida (cap. mensual)</td><td className="font-mono">(1 + TNA/12)¹² − 1</td><td>60% → 79,59%</td></tr>
             <tr><td>TNA adelantada (cap. mensual)</td><td className="font-mono">conversión adel.→venc., luego anualiza</td><td>60% → 85,06%</td></tr>
             <tr><td>TEM (efectiva mensual)</td><td className="font-mono">(1 + TEM)¹² − 1</td><td>5% → 79,59%</td></tr>
             <tr><td>Tasa efectiva diaria</td><td className="font-mono">(1 + i_d)³⁶⁵ − 1</td><td>0,2% → 107,4%</td></tr>
-            <tr><td>CFT-A (costo financiero total anual)</td><td className="font-mono">igual</td><td>ya es anual efectivo</td></tr>
+            <tr><td>CFT-A</td><td className="font-mono">igual</td><td>ya es anual efectivo</td></tr>
           </tbody>
         </table>
       </div>
@@ -954,12 +974,6 @@ function AyudaTab() {
           <li><b>TEA implícita</b>: <span className="font-mono">(bruto/neto)^(365/plazo) − 1</span></li>
           <li><b>Distribución mensual</b>: el monto neto se reparte entre los meses según los días pendientes de cobro</li>
         </ul>
-      </div>
-
-      <div className="card p-5">
-        <h2 className="text-base font-semibold mb-3">Notación numérica</h2>
-        <p className="text-sm">Convención argentina: <b>coma decimal</b> (ej: <code>75,5</code> para 75,5%). El sistema también acepta punto.</p>
-        <p className="text-sm mt-2">Los montos no usan separador de miles al ingresar (ej: <code>30000000</code> para 30 millones).</p>
       </div>
     </div>
   );
