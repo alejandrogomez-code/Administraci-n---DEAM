@@ -22,6 +22,12 @@ export type TipoTasa =
   | 'tasa_diaria'     // efectiva diaria
   | 'cft_a';          // CFT anual (equivalente a TEA)
 
+export type PerfilRiesgo =
+  | 'muy_solida'
+  | 'pyme_buena'
+  | 'mayor_riesgo'
+  | 'personalizado';
+
 export type Fuente = {
   id: string;
   ejercicio: Ejercicio;
@@ -29,9 +35,9 @@ export type Fuente = {
   tipo: TipoFuente;
   descripcion: string;
   moneda: Moneda;
-  saldo: number | null;       // saldo capital al cierre del mes
+  saldo: number | null;
   tipo_tasa: TipoTasa;
-  tasa: number | null;        // valor en %, según tipo_tasa
+  tasa: number | null;
   plazo_dias: number | null;
   notas: string;
   user_id: string;
@@ -42,7 +48,7 @@ export type Fuente = {
 export type ChequeOp = {
   id: string;
   ejercicio: Ejercicio;
-  fecha: string | null;       // YYYY-MM-DD
+  fecha: string | null;
   entidad: string;
   bruto: number | null;
   neto: number | null;
@@ -59,13 +65,15 @@ export type Benchmarks = {
   inflacion: number | null;
   devaluacion: number | null;
   badlar: number | null;
+  sofr: number | null;
+  riesgo_perfil: PerfilRiesgo;
+  riesgo_spread: number | null;
   notas: string;
   user_id?: string;
   created_at?: string;
   updated_at?: string;
 };
 
-// Catálogos de opciones (para selects)
 export const TIPOS_FUENTE: { v: TipoFuente; l: string }[] = [
   { v: 'prestamo',    l: 'Préstamo' },
   { v: 'adelanto',    l: 'Adelanto cta. cte.' },
@@ -82,4 +90,13 @@ export const TIPOS_TASA: { v: TipoTasa; l: string }[] = [
   { v: 'tem',            l: 'TEM (efectiva mensual)' },
   { v: 'tasa_diaria',    l: 'Tasa efectiva diaria' },
   { v: 'cft_a',          l: 'CFT-A (anual efectivo)' },
+];
+
+// Perfiles de riesgo empresario para la referencia SOFR + spread.
+// El "spread" es el add-on que se suma a SOFR.
+export const PERFILES_RIESGO: { v: PerfilRiesgo; l: string; spread: number | null; desc: string }[] = [
+  { v: 'muy_solida',    l: 'Empresa muy sólida', spread: 1.5, desc: 'Corporativa AAA/AA con acceso a mercado internacional' },
+  { v: 'pyme_buena',    l: 'PyME buena',         spread: 3.0, desc: 'PyME con historial sólido y buen rating crediticio' },
+  { v: 'mayor_riesgo',  l: 'Mayor riesgo',       spread: 5.0, desc: 'Empresa con mayor volatilidad o menor historial' },
+  { v: 'personalizado', l: 'Personalizado',      spread: null, desc: 'Definí manualmente el spread sobre SOFR' },
 ];
