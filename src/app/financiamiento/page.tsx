@@ -855,56 +855,36 @@ function ResultadosTab({ ejercicio, fuentes, cheques, benchmarks }: {
         </div>
       </div>
 
-      {/* Spread vs referencia internacional */}
+     {/* CFPP vs Referencia internacional */}
       <div className="card">
         <div className="p-5 border-b border-border">
-          <h2 className="text-base font-semibold">Spread vs referencia internacional (SOFR + Riesgo)</h2>
+          <h2 className="text-base font-semibold">CFPP vs Referencia internacional</h2>
           <p className="text-xs text-muted">
-            Cuánto más caro te sale financiarte en Argentina que a una empresa privada con acceso a mercado internacional
+            Comparación con SOFR + spread de riesgo, ajustado por devaluación esperada
           </p>
         </div>
 
-        {r.tasaRefUsd === null ? (
+        {r.tasaRefArsEquiv === null ? (
           <div className="p-6 text-sm text-muted text-center">
-            Cargá SOFR y perfil de riesgo en la pestaña <b>Datos</b> para ver este análisis.
+            Cargá SOFR, perfil de riesgo y devaluación esperada en la pestaña <b>Datos</b> para ver este análisis.
           </div>
         ) : (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-5 border-b border-border">
-              <Kpi label="Tasa referencia USD" value={fmtPct(r.tasaRefUsd)} sub={`SOFR + ${fmtPct(benchmarks.riesgo_spread ?? null)} de riesgo`} />
-              <Kpi label="Tasa referencia ARS equivalente" value={fmtPct(r.tasaRefArsEquiv)} sub={r.tasaRefArsEquiv === null ? 'Cargá devaluación esperada' : 'Ajustada por devaluación esperada'} />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-5">
-              <Kpi
-                label="Spread ajustado (recomendado)"
-                value={fmtPpts(r.spreadReferenciaAjustado)}
-                sub="CFPP ARS − Ref ARS equivalente. Aísla el 'costo país' financiero."
-                accent
-              />
-              <Kpi
-                label="Spread crudo"
-                value={fmtPpts(r.spreadReferenciaCrudo)}
-                sub="CFPP ARS − Ref USD. Mezcla monedas: sobrestima el costo real."
-              />
-              <Kpi
-                label="Spread CFPP USD vs ref USD"
-                value={fmtPpts(r.spreadReferenciaUsd)}
-                sub="Solo aplica si tenés deuda en USD"
-              />
-            </div>
-
-            <div className="px-5 pb-5">
-              <div className="p-3 rounded-lg bg-surface-2 border border-border text-xs">
-                <b>Cómo leer estos números:</b>
-                <ul className="mt-2 ml-4 list-disc space-y-1 text-muted">
-                  <li><b>Spread ajustado</b>: es el indicador que refleja el sobrecosto real de tomar deuda en Argentina vs afuera, en términos comparables (misma moneda equivalente).</li>
-                  <li><b>Spread crudo</b>: es el que pediste directamente. Es útil para tener la magnitud absoluta, pero mezcla monedas: parte del "spread" es solo la devaluación esperada, no un sobrecosto real.</li>
-                  <li>Ejemplo: si el spread crudo da 80 p.p. y el ajustado da 50 p.p., significa que ~30 p.p. son "costo de estar en pesos" (devaluación) y ~50 p.p. son el sobrecosto financiero real.</li>
-                </ul>
-              </div>
-            </div>
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 p-5">
+            <Kpi
+              label="CFPP nominal ARS"
+              value={fmtPct(r.cfppArs)}
+              sub="Costo financiero real de DEAM"
+            />
+            <Kpi
+              label="Tasa referencia ARS equivalente"
+              value={fmtPct(r.tasaRefArsEquiv)}
+              sub={`SOFR + ${fmtPct(benchmarks.riesgo_spread ?? null)} · ajustada por devaluación`}
+            />
+            <KpiSemaforo
+              label="Diferencia"
+              diff={r.spreadReferenciaAjustado}
+            />
+          </div>
         )}
       </div>
     </div>
@@ -920,7 +900,35 @@ function Kpi({ label, value, sub, accent }: { label: string; value: string; sub?
     </div>
   );
 }
+function KpiSemaforo({ label, diff }: { label: string; diff: number | null }) {
+  let borderClass = 'border-l-4 border-l-border';
+  let textClass = 'text-muted';
+  let mensaje = 'Cargá los datos para calcular';
 
+  if (diff !== null) {
+    if (diff > 2) {
+      borderClass = 'border-l-4 border-l-danger';
+      textClass = 'text-danger';
+      mensaje = 'CFPP significativamente mayor a la referencia';
+    } else if (diff < -2) {
+      borderClass = 'border-l-4 border-l-success';
+      textClass = 'text-success';
+      mensaje = 'CFPP menor a la referencia — buen posicionamiento';
+    } else {
+      borderClass = 'border-l-4 border-l-warning';
+      textClass = 'text-warning';
+      mensaje = 'CFPP dentro del rango de referencia (±2 p.p.)';
+    }
+  }
+
+  return (
+    <div className={`card p-4 ${borderClass}`}>
+      <div className="text-xs text-muted uppercase tracking-wide font-semibold">{label}</div>
+      <div className={`text-2xl font-bold tabular-nums mt-1 ${textClass}`}>{fmtPpts(diff)}</div>
+      <div className="text-xs text-muted mt-1">{mensaje}</div>
+    </div>
+  );
+}
 // ====== TAB: AYUDA ======
 function AyudaTab() {
   return (
