@@ -2,13 +2,8 @@
 // Funciones puras del módulo CFPP.
 
 import type {
-  Ejercicio,
-  Mes,
-  Moneda,
-  Fuente,
-  ChequeOp,
-  Benchmarks,
-  TipoTasa,
+  Ejercicio, Mes, Moneda,
+  Fuente, ChequeOp, Benchmarks, TipoTasa,
 } from './types';
 
 // ============ EJERCICIO FISCAL DEAM: ABRIL → MARZO ============
@@ -101,8 +96,6 @@ export function calcularTEACheque(
   return (Math.pow(bruto / neto, 365 / plazo) - 1) * 100;
 }
 
-// Distribuye el monto neto del cheque entre los meses pendientes de cobro.
-// Devuelve [{ mes: "YYYY-MM", saldoPromedio, diasPendientes }]
 export function distribuirCheque(c: ChequeOp): Array<{ mes: Mes; saldoPromedio: number; diasPendientes: number }> {
   const neto = c.neto;
   const plazo = c.plazo_dias;
@@ -144,7 +137,6 @@ export function distribuirCheque(c: ChequeOp): Array<{ mes: Mes; saldoPromedio: 
 }
 
 // ============ COMPONENTES UNIFICADOS POR MES ============
-// Para un mes dado, combina fuentes generales + cheques distribuidos a ese mes.
 export type Componente = {
   saldo: number;
   tea: number;
@@ -161,13 +153,11 @@ export function componentesDelMes(
 ): Componente[] {
   const out: Componente[] = [];
 
-  // Fuentes generales del mes
   fuentes.filter(f => f.mes === mes).forEach(f => {
     const tea = convertirATEA(f.tasa, f.tipo_tasa);
     if (f.saldo && f.saldo > 0 && tea !== null) {
       out.push({
-        saldo: f.saldo,
-        tea,
+        saldo: f.saldo, tea,
         moneda: f.moneda,
         tipo: f.tipo,
         entidad: (f.descripcion || '').trim() || '(sin nombre)',
@@ -176,7 +166,6 @@ export function componentesDelMes(
     }
   });
 
-  // Cheques distribuidos
   cheques.forEach(c => {
     const tea = calcularTEACheque(c);
     if (tea === null) return;
@@ -234,6 +223,20 @@ export function calcularPorMes(ej: Ejercicio, fuentes: Fuente[], cheques: Cheque
   });
 }
 
+// ============ REFERENCIA INTERNACIONAL (SOFR + Riesgo) ============
+export function calcularTasaReferencia(bm: Benchmarks): {
+  usd: number | null;
+  arsEquiv: number | null;
+} {
+  const sofr = bm.sofr;
+  const spread = bm.riesgo_spread;
+  if (sofr === null || spread === null) return { usd: null, arsEquiv: null };
+  const usd = sofr + spread;
+  if (bm.devaluacion === null) return { usd, arsEquiv: null };
+  const arsEquiv = ((1 + usd / 100) * (1 + bm.devaluacion / 100) - 1) * 100;
+  return { usd, arsEquiv };
+}
+
 // ============ CFPP DEL EJERCICIO + SPREADS ============
 export type ResumenEjercicio = {
   cfppArs: number | null;
@@ -243,6 +246,11 @@ export type ResumenEjercicio = {
   spreadInflacion: number | null;
   spreadBadlar: number | null;
   spreadDevaluacion: number | null;
+  tasaRefUsd: number | null;
+  tasaRefArsEquiv: number | null;
+  spreadReferenciaCrudo: number | null;
+  spreadReferenciaAjustado: number | null;
+  spreadReferenciaUsd: number | null;
   arsDen: number;
   usdDen: number;
 };
@@ -284,11 +292,17 @@ export function calcularEjercicio(
     ? ((1 + cfppArs / 100) / (1 + inflacion / 100) - 1) * 100
     : null;
 
+  const { usd: tasaRefUsd, arsEquiv: tasaRefArsEquiv } = calcularTasaReferencia(benchmarks);
+
   return {
     cfppArs, cfppUsd, plazoArs, cfppReal,
     spreadInflacion: (cfppArs !== null && inflacion !== null) ? cfppArs - inflacion : null,
     spreadBadlar: (cfppArs !== null && badlar !== null) ? cfppArs - badlar : null,
     spreadDevaluacion: (cfppUsd !== null && devaluacion !== null) ? cfppUsd - devaluacion : null,
+    tasaRefUsd, tasaRefArsEquiv,
+    spreadReferenciaCrudo: (cfppArs !== null && tasaRefUsd !== null) ? cfppArs - tasaRefUsd : null,
+    spreadReferenciaAjustado: (cfppArs !== null && tasaRefArsEquiv !== null) ? cfppArs - tasaRefArsEquiv : null,
+    spreadReferenciaUsd: (cfppUsd !== null && tasaRefUsd !== null) ? cfppUsd - tasaRefUsd : null,
     arsDen, usdDen,
   };
 }
@@ -302,11 +316,8 @@ export type GrupoConcentracion = {
 };
 
 function agrupar(
-  ej: Ejercicio,
-  fuentes: Fuente[],
-  cheques: ChequeOp[],
-  moneda: Moneda,
-  fnClave: (c: Componente) => string
+  ej: Ejercicio, fuentes: Fuente[], cheques: ChequeOp[],
+  moneda: Moneda, fnClave: (c: Componente) => string
 ): GrupoConcentracion[] {
   const map = new Map<string, { saldoTotal: number; teaPond: number }>();
   mesesDeEjercicio(ej).forEach(mes => {
