@@ -37,7 +37,7 @@ const items: Item[] = [
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
 
-export default function Sidebar() {
+export default function Sidebar({ rol }: { rol?: string } = {}) {
   const path = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
