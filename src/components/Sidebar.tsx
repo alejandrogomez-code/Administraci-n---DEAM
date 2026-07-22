@@ -5,8 +5,8 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   BookOpen, Building2, ChevronDown, ChevronLeft, ChevronRight,
-  FileSpreadsheet, FileText, LayoutDashboard, ListChecks, LogOut, Settings, Wallet, Banknote,
-  Receipt, Zap,
+  ClipboardCheck, FileSpreadsheet, FileText, LayoutDashboard, ListChecks, LogOut,
+  Settings, Wallet, Banknote, Receipt, Zap,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -21,8 +21,9 @@ const items: Item[] = [
     label: 'Contabilidad',
     icon: FileSpreadsheet,
     children: [
-      { href: '/contabilidad/cierres', label: 'Cierres del mes', icon: FileText },
-      { href: '/contabilidad/iva',     label: 'Control de IVA',  icon: Wallet },
+      { href: '/contabilidad/cierres',   label: 'Cierres del mes',     icon: FileText },
+      { href: '/contabilidad/iva',       label: 'Control de IVA',      icon: Wallet },
+      { href: '/contabilidad/auditoria', label: 'Auditoría trimestral', icon: ClipboardCheck },
     ],
   },
   {
@@ -51,7 +52,6 @@ export default function Sidebar({ rol }: { rol?: string } = {}) {
   useEffect(() => { localStorage.setItem('deam.sidebar', collapsed ? '1' : '0'); }, [collapsed]);
   useEffect(() => { localStorage.setItem('deam.sidebar.exp', JSON.stringify(expanded)); }, [expanded]);
 
-  // expandir automáticamente la categoría activa
   useEffect(() => {
     const auto: Record<string, boolean> = { ...expanded };
     let changed = false;
