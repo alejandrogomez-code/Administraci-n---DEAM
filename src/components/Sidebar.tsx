@@ -5,14 +5,15 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
   BookOpen, Building2, ChevronDown, ChevronLeft, ChevronRight,
-  FileSpreadsheet, FileText, FolderArchive, LayoutDashboard, LogOut, Settings, Wallet, Banknote,
-  Receipt, Zap, TrendingUp,
+  FileSpreadsheet, FileText, LayoutDashboard, ListChecks, LogOut, Settings, Wallet, Banknote,
+  Receipt, Zap,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-type Item = { href: string; label: string; icon: any; children?: Item[]; soloAdmin?: boolean };
+type Item = { href: string; label: string; icon: any; children?: Item[] };
 
 const items: Item[] = [
+  { href: '/tareas',    label: 'Gestor de tareas', icon: ListChecks },
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/accesos-directos', label: 'Accesos directos', icon: Zap },
   {
@@ -32,25 +33,15 @@ const items: Item[] = [
       { href: '/tesoreria/venta-cheques', label: 'Venta de cheques', icon: Receipt },
     ],
   },
-  // Módulo financiero (CFPP) — solo visible para rol admin
-  { href: '/financiamiento', label: 'Financiamiento', icon: TrendingUp, soloAdmin: true },
-
   { href: '/manuales',  label: 'Manuales y Capacitaciones', icon: BookOpen },
-  { href: '/repositorio', label: 'Repositorio', icon: FolderArchive },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
 
-export default function Sidebar({ rol }: { rol?: string | null }) {
+export default function Sidebar() {
   const path = usePathname();
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
-  // El rol "ventas" solo ve la sección Repositorio
-  // Los ítems con soloAdmin solo se muestran si rol === 'admin'
-  const visibleItems = rol === 'ventas'
-    ? items.filter((it) => it.href === '/repositorio')
-    : items.filter((it) => !it.soloAdmin || rol === 'admin');
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('deam.sidebar') === '1');
@@ -97,7 +88,7 @@ export default function Sidebar({ rol }: { rol?: string | null }) {
       </div>
 
       <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-        {visibleItems.map((it) => {
+        {items.map((it) => {
           const Icon = it.icon;
           const active = isActive(it.href);
           const hasChildren = !!it.children?.length;
