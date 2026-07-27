@@ -6,11 +6,11 @@ import { useEffect, useState } from 'react';
 import {
   BookOpen, Building2, ChevronDown, ChevronLeft, ChevronRight,
   ClipboardCheck, FileSpreadsheet, FileText, LayoutDashboard, ListChecks, LogOut,
-  Settings, Wallet, Banknote, Receipt, Zap,
+  Settings, Wallet, Banknote, Receipt, Zap, TrendingUp,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
-type Item = { href: string; label: string; icon: any; children?: Item[] };
+type Item = { href: string; label: string; icon: any; children?: Item[]; soloAdmin?: boolean };
 
 const items: Item[] = [
   { href: '/tareas',    label: 'Gestor de tareas', icon: ListChecks },
@@ -34,6 +34,7 @@ const items: Item[] = [
       { href: '/tesoreria/venta-cheques', label: 'Venta de cheques', icon: Receipt },
     ],
   },
+  { href: '/financiamiento', label: 'Financiamiento', icon: TrendingUp, soloAdmin: true },
   { href: '/manuales',  label: 'Manuales y Capacitaciones', icon: BookOpen },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
@@ -43,6 +44,8 @@ export default function Sidebar({ rol }: { rol?: string } = {}) {
   const router = useRouter();
   const [collapsed, setCollapsed] = useState(false);
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
+
+  const visibleItems = items.filter((it) => !it.soloAdmin || rol === 'admin');
 
   useEffect(() => {
     setCollapsed(localStorage.getItem('deam.sidebar') === '1');
@@ -88,7 +91,7 @@ export default function Sidebar({ rol }: { rol?: string } = {}) {
       </div>
 
       <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-        {items.map((it) => {
+        {visibleItems.map((it) => {
           const Icon = it.icon;
           const active = isActive(it.href);
           const hasChildren = !!it.children?.length;
