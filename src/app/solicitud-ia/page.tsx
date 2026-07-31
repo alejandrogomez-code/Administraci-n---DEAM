@@ -9,6 +9,7 @@ type Form = {
   area: string;
   coordinador: string;
   problema: string;
+  resultado: string;
   requerimiento: string;
   cantidad_licencias: string;
 };
@@ -18,6 +19,7 @@ const VACIO: Form = {
   area: '',
   coordinador: '',
   problema: '',
+  resultado: '',
   requerimiento: '',
   cantidad_licencias: '',
 };
@@ -48,6 +50,7 @@ export default function SolicitudIAPage() {
       area: form.area.trim(),
       coordinador: form.coordinador.trim(),
       problema: form.problema.trim(),
+      resultado: form.resultado.trim() || null,
       requerimiento: form.requerimiento.trim(),
       cantidad_licencias: form.cantidad_licencias === '' ? null : Number(form.cantidad_licencias),
       estado: 'solicitado' as const,
@@ -126,13 +129,24 @@ export default function SolicitudIAPage() {
               </div>
 
               <div>
-                <label className="text-sm font-medium">Problema que se quiere abordar <span className="text-danger">*</span></label>
+                <label className="text-sm font-medium">Proyecto / automatización que se quiere abordar <span className="text-danger">*</span></label>
                 <textarea
                   rows={3}
                   className="input mt-1 resize-y"
-                  placeholder="¿Qué tarea o necesidad se busca resolver con IA?"
+                  placeholder="¿Qué proyecto o automatización se busca encarar con IA?"
                   value={form.problema}
                   onChange={e => set('problema', e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="text-sm font-medium">Resultado esperado</label>
+                <textarea
+                  rows={3}
+                  className="input mt-1 resize-y"
+                  placeholder="¿Qué resultado se espera lograr?"
+                  value={form.resultado}
+                  onChange={e => set('resultado', e.target.value)}
                 />
               </div>
 
