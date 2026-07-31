@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import {
   BookOpen, Building2, ChevronDown, ChevronLeft, ChevronRight,
   ClipboardCheck, FileSpreadsheet, FileText, LayoutDashboard, ListChecks, LogOut,
-  Settings, Wallet, Banknote, Receipt, Zap, TrendingUp,
+  Settings, Wallet, Banknote, Receipt, Zap, TrendingUp, Bot,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -35,6 +35,7 @@ const items: Item[] = [
     ],
   },
   { href: '/financiamiento', label: 'Financiamiento', icon: TrendingUp, soloAdmin: true },
+  { href: '/requerimientos-ia', label: 'Requerimientos IA', icon: Bot, soloAdmin: true },
   { href: '/manuales',  label: 'Manuales y Capacitaciones', icon: BookOpen },
   { href: '/configuracion', label: 'Configuración', icon: Settings },
 ];
