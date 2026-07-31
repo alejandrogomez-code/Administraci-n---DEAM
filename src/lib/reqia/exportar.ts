@@ -5,6 +5,7 @@ export type SolicitudExport = {
   area: string;
   coordinador: string;
   problema: string;
+  resultado: string | null;
   requerimiento: string;
   cantidad_licencias: number | null;
   estado: string;       // etiqueta legible (ej. "Aprobado")
@@ -16,7 +17,8 @@ const CAMPOS: { label: string; key: keyof SolicitudExport }[] = [
   { label: 'Fecha', key: 'fecha' },
   { label: 'Área solicitante', key: 'area' },
   { label: 'Coordinador del área', key: 'coordinador' },
-  { label: 'Problema que se quiere abordar', key: 'problema' },
+  { label: 'Proyecto / automatización que se quiere abordar', key: 'problema' },
+  { label: 'Resultado esperado', key: 'resultado' },
   { label: 'Requerimiento de Sistemas / IA (plataforma sugerida)', key: 'requerimiento' },
   { label: 'Cantidad de licencias', key: 'cantidad_licencias' },
   { label: 'Estado del requerimiento', key: 'estado' },
