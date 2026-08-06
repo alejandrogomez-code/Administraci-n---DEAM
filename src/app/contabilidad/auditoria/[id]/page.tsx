@@ -10,6 +10,7 @@ import StatusChip from '@/components/StatusChip';
 import ProgressBar from '@/components/ProgressBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFecha } from '@/lib/format';
+import { mapearTareasGestor, adjuntosDelGestor, urlFirmada } from '@/lib/auditoria/adjuntos';
 
 type Task = {
   id: string;
@@ -43,6 +44,7 @@ type Adjunto = {
   archivo_nombre: string;
   mime_type: string | null;
   size_bytes: number | null;
+  origen?: 'auditoria' | 'gestor';
 };
 
 type Miembro = { id: string; nombre: string };
@@ -67,28 +69,32 @@ export default function TrimestreDetallePage() {
 
   async function load() {
     setLoading(true);
-    const [{ data: c }, { data: t }, { data: a }, { data: p }] = await Promise.all([
+    const [{ data: c }, { data: t }, { data: p }] = await Promise.all([
       supabase.from('audit_trimestres').select('*').eq('id', id).single(),
       supabase.from('audit_trimestre_tasks').select('*').eq('trimestre_id', id).order('orden'),
-      supabase.from('audit_task_attachments').select('*').in('task_id',
-        // truco: cargamos primero las tasks, después los adjuntos
-        // pero para reducir queries, hacemos join manual con IN. Como aún no tenemos tasks,
-        // usamos una query aparte más abajo.
-        []
-      ),
       supabase.from('team_members').select('id, nombre').eq('activo', true).order('orden').order('nombre'),
     ]);
     setTrimestreObj(c as any);
     const tasksArr = ((t as any) ?? []) as Task[];
     setTasks(tasksArr);
     setMiembros(p ?? []);
-    // ahora que tenemos las tasks, cargar adjuntos
+    // ahora que tenemos las tasks, cargar adjuntos (propios + del gestor)
     if (tasksArr.length > 0) {
+      const ids = tasksArr.map((x) => x.id);
       const { data: adj } = await supabase
         .from('audit_task_attachments')
         .select('*')
-        .in('task_id', tasksArr.map((x) => x.id));
-      setAdjuntos((adj as any) ?? []);
+        .in('task_id', ids);
+      const propios = ((adj as any) ?? []).map((a: any) => ({ ...a, origen: 'auditoria' as const }));
+
+      // Adjuntos subidos desde el gestor de tareas (tarea-espejo del trigger)
+      let delGestor: any[] = [];
+      try {
+        const mapa = await mapearTareasGestor(ids);
+        delGestor = await adjuntosDelGestor(mapa);
+      } catch { /* si no se puede resolver el vínculo, seguimos solo con los propios */ }
+
+      setAdjuntos([...propios, ...delGestor]);
     } else {
       setAdjuntos([]);
     }
@@ -218,83 +224,103 @@ export default function TrimestreDetallePage() {
           </div>
 
           <div className="overflow-x-auto">
-            {gruposTareas.map((g) => (
-              <div key={g.rubro}>
-                <div className="px-4 py-2 text-xs uppercase tracking-wide text-primary font-semibold bg-surface-2 border-b border-border">
-                  {g.rubro || 'Sin rubro'} · {g.items.length} tarea{g.items.length === 1 ? '' : 's'}
-                </div>
-                <table className="tbl min-w-[1100px]">
-                  <thead className="sr-only">
-                    <tr>
-                      <th>#</th><th>Tarea</th><th>Responsable</th><th>Vencimiento</th>
-                      <th>Finalizada</th><th>Estado</th><th>URL</th><th>Adjuntos</th><th></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.items.map((t) => {
-                      const resp = miembros.find((p) => p.id === t.responsable_id)?.nombre;
-                      const adjCount = adjuntosPorTask.get(t.id)?.length ?? 0;
-                      return (
-                        <tr key={t.id}>
-                          <td className="text-muted w-10">{t.orden}</td>
-                          <td>
-                            <div className="font-medium text-sm">{t.nombre}</div>
-                            {t.descripcion && <div className="text-xs text-muted">{t.descripcion}</div>}
-                            {t.observaciones && <div className="text-xs italic text-muted mt-1">📝 {t.observaciones}</div>}
-                          </td>
-                          <td className="w-40">
-                            <select
-                              value={t.responsable_id ?? ''}
-                              onChange={(e) => actualizarTarea(t, { responsable_id: e.target.value || null })}
-                              className="input !w-auto !py-1 text-xs"
-                            >
-                              <option value="">Sin asignar</option>
-                              {miembros.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
-                            </select>
-                          </td>
-                          <td className="w-32">
-                            <input
-                              type="date"
-                              value={t.fecha_vencimiento ?? ''}
-                              onChange={(e) => actualizarTarea(t, { fecha_vencimiento: e.target.value || null })}
-                              className="input !w-auto !py-1 text-xs"
-                            />
-                          </td>
-                          <td className="text-xs w-24">{fmtFecha(t.fecha_finalizacion)}</td>
-                          <td className="w-36">
-                            <select
-                              value={t.estado}
-                              onChange={(e) => actualizarTarea(t, { estado: e.target.value as Task['estado'] }, { recalcularTrimestre: true })}
-                              className="input !w-auto !py-1 text-xs"
-                            >
-                              <option value="pendiente">Pendiente</option>
-                              <option value="en_proceso">En proceso</option>
-                              <option value="completado">Completado</option>
-                            </select>
-                          </td>
-                          <td className="w-16 text-center">
-                            {t.url ? (
-                              <a href={t.url} target="_blank" rel="noopener noreferrer" className="text-primary inline-flex items-center gap-1 text-xs">
-                                <ExternalLink size={12}/>
-                              </a>
-                            ) : <span className="text-muted text-xs">—</span>}
-                          </td>
-                          <td className="w-20">
-                            <button onClick={() => setAdjuntosTaskId(t.id)} className="text-primary text-xs inline-flex items-center gap-1 hover:underline">
-                              <Paperclip size={12}/> {adjCount}
-                            </button>
-                          </td>
-                          <td className="flex gap-3 whitespace-nowrap w-32">
+            <table className="tbl w-full min-w-[1180px] table-fixed">
+              <colgroup>
+                <col className="w-10" />
+                <col />
+                <col className="w-40" />
+                <col className="w-36" />
+                <col className="w-28" />
+                <col className="w-40" />
+                <col className="w-16" />
+                <col className="w-20" />
+                <col className="w-28" />
+              </colgroup>
+              <thead>
+                <tr className="text-xs uppercase tracking-wide text-muted">
+                  <th className="text-left px-3 py-2">#</th>
+                  <th className="text-left px-3 py-2">Tarea</th>
+                  <th className="text-left px-3 py-2">Responsable</th>
+                  <th className="text-left px-3 py-2">Vencimiento</th>
+                  <th className="text-left px-3 py-2">Finalizada</th>
+                  <th className="text-left px-3 py-2">Estado</th>
+                  <th className="text-center px-3 py-2">URL</th>
+                  <th className="text-left px-3 py-2">Adjuntos</th>
+                  <th className="px-3 py-2"></th>
+                </tr>
+              </thead>
+              {gruposTareas.map((g) => (
+                <tbody key={g.rubro}>
+                  <tr>
+                    <td colSpan={9} className="px-4 py-2 text-xs uppercase tracking-wide text-primary font-semibold bg-surface-2 border-y border-border">
+                      {g.rubro || 'Sin rubro'} · {g.items.length} tarea{g.items.length === 1 ? '' : 's'}
+                    </td>
+                  </tr>
+                  {g.items.map((t) => {
+                    const resp = miembros.find((p) => p.id === t.responsable_id)?.nombre;
+                    const adjCount = adjuntosPorTask.get(t.id)?.length ?? 0;
+                    return (
+                      <tr key={t.id} className="align-top">
+                        <td className="px-3 py-2 text-muted">{t.orden}</td>
+                        <td className="px-3 py-2">
+                          <div className="font-medium text-sm">{t.nombre}</div>
+                          {t.descripcion && <div className="text-xs text-muted">{t.descripcion}</div>}
+                          {t.observaciones && <div className="text-xs italic text-muted mt-1">📝 {t.observaciones}</div>}
+                        </td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={t.responsable_id ?? ''}
+                            onChange={(e) => actualizarTarea(t, { responsable_id: e.target.value || null })}
+                            className="input !py-1 text-xs w-full"
+                          >
+                            <option value="">Sin asignar</option>
+                            {miembros.map((p) => <option key={p.id} value={p.id}>{p.nombre}</option>)}
+                          </select>
+                        </td>
+                        <td className="px-3 py-2">
+                          <input
+                            type="date"
+                            value={t.fecha_vencimiento ?? ''}
+                            onChange={(e) => actualizarTarea(t, { fecha_vencimiento: e.target.value || null })}
+                            className="input !py-1 text-xs w-full"
+                          />
+                        </td>
+                        <td className="px-3 py-2 text-xs">{fmtFecha(t.fecha_finalizacion)}</td>
+                        <td className="px-3 py-2">
+                          <select
+                            value={t.estado}
+                            onChange={(e) => actualizarTarea(t, { estado: e.target.value as Task['estado'] }, { recalcularTrimestre: true })}
+                            className="input !py-1 text-xs w-full"
+                          >
+                            <option value="pendiente">Pendiente</option>
+                            <option value="en_proceso">En proceso</option>
+                            <option value="completado">Completado</option>
+                          </select>
+                        </td>
+                        <td className="px-3 py-2 text-center">
+                          {t.url ? (
+                            <a href={t.url} target="_blank" rel="noopener noreferrer" className="text-primary inline-flex items-center gap-1 text-xs">
+                              <ExternalLink size={12}/>
+                            </a>
+                          ) : <span className="text-muted text-xs">—</span>}
+                        </td>
+                        <td className="px-3 py-2">
+                          <button onClick={() => setAdjuntosTaskId(t.id)} className="text-primary text-xs inline-flex items-center gap-1 hover:underline">
+                            <Paperclip size={12}/> {adjCount}
+                          </button>
+                        </td>
+                        <td className="px-3 py-2">
+                          <div className="flex gap-3 whitespace-nowrap">
                             <button onClick={() => setEditing(t)} className="text-primary text-xs hover:underline">Editar</button>
                             <button onClick={() => eliminarTarea(t)} className="text-danger text-xs hover:underline">Eliminar</button>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            ))}
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              ))}
+            </table>
           </div>
         </div>
       </div>
@@ -381,7 +407,13 @@ function AdjuntosModal({ taskId, task, onClose }: {
   async function load() {
     setLoading(true);
     const { data } = await supabase.from('audit_task_attachments').select('*').eq('task_id', taskId).order('created_at');
-    setAdjuntos((data as any) ?? []);
+    const propios: Adjunto[] = ((data as any) ?? []).map((a: any) => ({ ...a, origen: 'auditoria' as const }));
+    let delGestor: Adjunto[] = [];
+    try {
+      const mapa = await mapearTareasGestor([taskId]);
+      delGestor = (await adjuntosDelGestor(mapa)) as any;
+    } catch { /* sin vínculo: solo propios */ }
+    setAdjuntos([...propios, ...delGestor]);
     setLoading(false);
   }
   useEffect(() => { load(); }, [taskId]);
@@ -419,10 +451,10 @@ function AdjuntosModal({ taskId, task, onClose }: {
   }
 
   async function descargar(a: Adjunto) {
-    const { data, error } = await supabase.storage.from('audit-files').createSignedUrl(a.archivo_url, 60);
-    if (error || !data?.signedUrl) { alert('No se pudo generar el enlace.'); return; }
+    const signed = await urlFirmada(a.archivo_url, a.origen ?? 'auditoria');
+    if (!signed) { alert('No se pudo generar el enlace.'); return; }
     const link = document.createElement('a');
-    link.href = data.signedUrl;
+    link.href = signed;
     link.download = a.archivo_nombre;
     link.click();
   }
@@ -456,9 +488,16 @@ function AdjuntosModal({ taskId, task, onClose }: {
               <div key={a.id} className="flex items-center gap-2 border border-border rounded px-2 py-1.5 text-sm">
                 <Paperclip size={14} className="text-muted"/>
                 <span className="flex-1 truncate">{a.archivo_nombre}</span>
+                {a.origen === 'gestor' && (
+                  <span className="chip bg-accent/15 text-accent text-[10px] whitespace-nowrap">Gestor</span>
+                )}
                 <span className="text-xs text-muted whitespace-nowrap">{a.size_bytes ? (a.size_bytes / 1024).toFixed(0) + ' KB' : ''}</span>
                 <button onClick={() => descargar(a)} className="text-primary hover:opacity-70" title="Descargar"><Download size={12}/></button>
-                <button onClick={() => eliminar(a)} className="text-danger hover:opacity-70" title="Eliminar"><Trash2 size={12}/></button>
+                {a.origen === 'gestor' ? (
+                  <span className="w-3" title="Se gestiona desde el gestor de tareas" />
+                ) : (
+                  <button onClick={() => eliminar(a)} className="text-danger hover:opacity-70" title="Eliminar"><Trash2 size={12}/></button>
+                )}
               </div>
             ))}
           </div>
