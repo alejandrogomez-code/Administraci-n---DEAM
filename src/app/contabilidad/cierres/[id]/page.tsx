@@ -203,7 +203,7 @@ export default function CierreDetallePage() {
               </thead>
               <tbody>
                 {filtradas.map((t) => (
-                  <tr key={t.id}>
+                  <tr key={t.id} className={t.estado === 'completado' ? 'bg-success/10' : undefined}>
                     <td className="text-muted">{t.orden}</td>
                     <td>
                       <div className="font-medium text-sm">{t.nombre}</div>
