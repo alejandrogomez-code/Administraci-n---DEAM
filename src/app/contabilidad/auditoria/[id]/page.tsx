@@ -261,7 +261,7 @@ export default function TrimestreDetallePage() {
                     const resp = miembros.find((p) => p.id === t.responsable_id)?.nombre;
                     const adjCount = adjuntosPorTask.get(t.id)?.length ?? 0;
                     return (
-                      <tr key={t.id} className="align-top">
+                      <tr key={t.id} className={`align-top ${t.estado === 'completado' ? 'bg-success/10' : ''}`}>
                         <td className="px-3 py-2 text-muted">{t.orden}</td>
                         <td className="px-3 py-2">
                           <div className="font-medium text-sm">{t.nombre}</div>
