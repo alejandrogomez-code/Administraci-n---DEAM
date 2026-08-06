@@ -10,7 +10,7 @@ import StatusChip from '@/components/StatusChip';
 import ProgressBar from '@/components/ProgressBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFecha } from '@/lib/format';
-import { mapearTareasGestor, adjuntosDelGestor, urlFirmada } from '@/lib/auditoria/adjuntos';
+import { adjuntosDelGestor, urlFirmada } from '@/lib/auditoria/adjuntos';
 
 type Task = {
   id: string;
@@ -24,6 +24,7 @@ type Task = {
   estado: 'pendiente' | 'en_proceso' | 'completado';
   observaciones: string | null;
   url: string | null;
+  tarea_id: string | null;
 };
 
 type Trimestre = {
@@ -90,9 +91,9 @@ export default function TrimestreDetallePage() {
       // Adjuntos subidos desde el gestor de tareas (tarea-espejo del trigger)
       let delGestor: any[] = [];
       try {
-        const mapa = await mapearTareasGestor(ids);
-        delGestor = await adjuntosDelGestor(mapa);
-      } catch { /* si no se puede resolver el vínculo, seguimos solo con los propios */ }
+        const pares = tasksArr.map((x) => ({ auditTaskId: x.id, tareaId: x.tarea_id }));
+        delGestor = await adjuntosDelGestor(pares);
+      } catch { /* si algo falla, seguimos solo con los propios */ }
 
       setAdjuntos([...propios, ...delGestor]);
     } else {
@@ -410,8 +411,7 @@ function AdjuntosModal({ taskId, task, onClose }: {
     const propios: Adjunto[] = ((data as any) ?? []).map((a: any) => ({ ...a, origen: 'auditoria' as const }));
     let delGestor: Adjunto[] = [];
     try {
-      const mapa = await mapearTareasGestor([taskId]);
-      delGestor = (await adjuntosDelGestor(mapa)) as any;
+      delGestor = (await adjuntosDelGestor([{ auditTaskId: taskId, tareaId: task.tarea_id }])) as any;
     } catch { /* sin vínculo: solo propios */ }
     setAdjuntos([...propios, ...delGestor]);
     setLoading(false);
