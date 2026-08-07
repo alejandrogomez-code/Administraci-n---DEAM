@@ -9,7 +9,7 @@ import {
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
-import { exportarSolicitudExcel, exportarSolicitudPDF, type SolicitudExport } from '@/lib/reqia/exportar';
+import { exportarSolicitudExcel, exportarSolicitudPDF, exportarListadoExcel, exportarListadoPDF, type SolicitudExport } from '@/lib/reqia/exportar';
 
 type Estado = 'solicitado' | 'analisis' | 'aprobado' | 'rechazado';
 
@@ -261,7 +261,25 @@ export default function RequerimientosIAPage() {
               {filtroEstado && (
                 <button onClick={() => setFiltroEstado('')} className="btn-ghost text-xs">Quitar filtro de estado</button>
               )}
-              <button onClick={agregar} className="btn-primary ml-auto"><Plus size={16} /> Nueva solicitud</button>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => exportarListadoPDF(filtradas.map(toExport))}
+                  disabled={filtradas.length === 0}
+                  className="btn-secondary disabled:opacity-50"
+                  title="Descargar todas en PDF"
+                >
+                  <FileText size={16} /> PDF
+                </button>
+                <button
+                  onClick={() => exportarListadoExcel(filtradas.map(toExport))}
+                  disabled={filtradas.length === 0}
+                  className="btn-secondary disabled:opacity-50"
+                  title="Descargar todas en Excel"
+                >
+                  <FileSpreadsheet size={16} /> Excel
+                </button>
+                <button onClick={agregar} className="btn-primary"><Plus size={16} /> Nueva solicitud</button>
+              </div>
             </div>
 
             <div className="card overflow-x-auto">
