@@ -136,6 +136,17 @@ export default function PropuestaDetallePage() {
     await ejecutarSnapshot(false);
   }
 
+  async function actualizarImporteCheque(c: Cheque, nuevoImporte: number) {
+    if (nuevoImporte === c.importe) return;
+    // Optimista: actualizamos el estado local para que el resumen recalcule al instante
+    setCheques((prev) => prev.map((x) => x.id === c.id ? { ...x, importe: nuevoImporte } : x));
+    const { error } = await supabase.from('cheques').update({ importe: nuevoImporte }).eq('id', c.id);
+    if (error) {
+      alert('No se pudo guardar el importe: ' + error.message);
+      load();
+    }
+  }
+
   async function quitarCheque(c: Cheque) {
     if (!confirm('Quitar este cheque de la propuesta? Vuelve al universo de cheques disponibles.')) return;
     await supabase.from('cheques').update({ propuesta_id: null }).eq('id', c.id);
@@ -416,7 +427,21 @@ export default function PropuestaDetallePage() {
                       <tr key={c.id} className={enProblema ? 'bg-warning/5' : ''}>
                         <td className="whitespace-nowrap text-sm">{fmtFecha(c.vencimiento)}</td>
                         <td className="text-xs">{c.asignacion ?? '-'}</td>
-                        <td className="text-right text-sm">{fmtMoney(c.importe)}</td>
+                        <td className="text-right text-sm">
+                          <input
+                            type="number"
+                            step="0.01"
+                            className="input !py-1 text-sm text-right !w-32"
+                            defaultValue={c.importe}
+                            key={c.importe}
+                            onBlur={(e) => {
+                              const v = parseFloat(e.target.value);
+                              if (!isNaN(v) && v >= 0) actualizarImporteCheque(c, v);
+                              else e.target.value = String(c.importe);
+                            }}
+                            onKeyDown={(e) => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+                          />
+                        </td>
                         <td className="text-xs text-muted">{dias ?? '-'}</td>
                         <td className="text-xs">{desc != null ? `${(desc * 100).toFixed(2)}%` : '-'}</td>
                         <td className="text-right text-sm">{aPer != null ? fmtMoney(aPer) : '-'}</td>
