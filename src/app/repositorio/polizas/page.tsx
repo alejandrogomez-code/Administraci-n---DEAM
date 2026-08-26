@@ -312,26 +312,35 @@ export default function PolizasPage() {
 
             {(vencidas.length > 0 || proximas.length > 0 || avisosBaja.length > 0) && (
               <div className="card overflow-hidden">
-                <Grupo titulo="Vencidas" color="danger" />
-                {vencidas.length === 0 ? (
-                  <div className="px-4 py-3 text-xs text-muted">Sin pólizas vencidas.</div>
-                ) : (
-                  <TablaAlerta filas={vencidas} campo="vencimiento" jurById={jurById} hoy={hoy} onIr={setEditing} />
-                )}
+                <div className="overflow-x-auto">
+                  <table className="tbl min-w-[680px]">
+                    <thead>
+                      <tr>
+                        <th>Empresa</th>
+                        <th>Jurisdicción</th>
+                        <th>Fecha</th>
+                        <th>Plazo</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <GrupoRow titulo="Vencidas" color="danger" />
+                      {vencidas.length === 0
+                        ? <VacioRow msg="Sin pólizas vencidas." />
+                        : vencidas.map((p) => <FilaAlerta key={p.id} p={p} campo="vencimiento" jurById={jurById} hoy={hoy} onIr={setEditing} />)}
 
-                <Grupo titulo={`Próximas a vencer (${DIAS_AVISO} días)`} color="warning" />
-                {proximas.length === 0 ? (
-                  <div className="px-4 py-3 text-xs text-muted">Sin pólizas próximas a vencer.</div>
-                ) : (
-                  <TablaAlerta filas={proximas} campo="vencimiento" jurById={jurById} hoy={hoy} onIr={setEditing} />
-                )}
+                      <GrupoRow titulo={`Próximas a vencer (${DIAS_AVISO} días)`} color="warning" />
+                      {proximas.length === 0
+                        ? <VacioRow msg="Sin pólizas próximas a vencer." />
+                        : proximas.map((p) => <FilaAlerta key={p.id} p={p} campo="vencimiento" jurById={jurById} hoy={hoy} onIr={setEditing} />)}
 
-                <Grupo titulo={`Avisos de baja próximos (${DIAS_AVISO} días)`} color="warning" />
-                {avisosBaja.length === 0 ? (
-                  <div className="px-4 py-3 text-xs text-muted">Sin avisos de baja próximos.</div>
-                ) : (
-                  <TablaAlerta filas={avisosBaja} campo="aviso_baja" jurById={jurById} hoy={hoy} onIr={setEditing} />
-                )}
+                      <GrupoRow titulo={`Avisos de baja próximos (${DIAS_AVISO} días)`} color="warning" />
+                      {avisosBaja.length === 0
+                        ? <VacioRow msg="Sin avisos de baja próximos." />
+                        : avisosBaja.map((p) => <FilaAlerta key={p.id} p={p} campo="aviso_baja" jurById={jurById} hoy={hoy} onIr={setEditing} />)}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
@@ -387,67 +396,58 @@ export default function PolizasPage() {
   );
 }
 
-// ===================== Cabecera de grupo (alertas) =====================
-function Grupo({ titulo, color }: { titulo: string; color: 'danger' | 'warning' }) {
+// ===================== Filas de la tabla de alertas =====================
+function GrupoRow({ titulo, color }: { titulo: string; color: 'danger' | 'warning' }) {
   return (
-    <div className="px-4 py-2.5 border-y border-border flex items-center gap-2 bg-surface-2">
-      <span className={`w-2 h-2 rounded-full ${color === 'danger' ? 'bg-danger' : 'bg-warning'}`} />
-      <span className={`text-sm font-medium ${color === 'danger' ? 'text-danger' : 'text-warning'}`}>{titulo}</span>
-    </div>
+    <tr className="bg-surface-2">
+      <td colSpan={5} className="!py-2">
+        <div className="flex items-center gap-2">
+          <span className={`w-2 h-2 rounded-full ${color === 'danger' ? 'bg-danger' : 'bg-warning'}`} />
+          <span className={`text-sm font-medium ${color === 'danger' ? 'text-danger' : 'text-warning'}`}>{titulo}</span>
+        </div>
+      </td>
+    </tr>
   );
 }
 
-// ===================== Tabla de alertas =====================
-function TablaAlerta({
-  filas, campo, jurById, hoy, onIr,
+function VacioRow({ msg }: { msg: string }) {
+  return (
+    <tr>
+      <td colSpan={5} className="text-xs text-muted">{msg}</td>
+    </tr>
+  );
+}
+
+function FilaAlerta({
+  p, campo, jurById, hoy, onIr,
 }: {
-  filas: Poliza[];
+  p: Poliza;
   campo: 'vencimiento' | 'aviso_baja';
   jurById: Record<string, Jurisdiccion>;
   hoy: Date;
   onIr: (p: Poliza) => void;
 }) {
-  const etiquetaFecha = campo === 'vencimiento' ? 'Vencimiento' : 'Aviso de baja';
+  const iso = p[campo]!;
+  const f = parseISODate(iso);
+  const dias = diffDias(f, hoy); // negativo = ya pasó
+  const pasado = dias < 0;
+  const abs = Math.abs(dias);
   return (
-    <div className="overflow-x-auto">
-      <table className="tbl min-w-[680px]">
-        <thead>
-          <tr>
-            <th>Empresa</th>
-            <th>Jurisdicción</th>
-            <th>{etiquetaFecha}</th>
-            <th>Plazo</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {filas.map((p) => {
-            const iso = p[campo]!;
-            const f = parseISODate(iso);
-            const dias = diffDias(f, hoy); // negativo = ya pasó
-            const pasado = dias < 0;
-            const abs = Math.abs(dias);
-            return (
-              <tr key={p.id}>
-                <td className="text-sm font-medium">{p.empresa}</td>
-                <td><span className="chip bg-surface-2 text-text">{jurById[p.jurisdiccion_id]?.nombre ?? '—'}</span></td>
-                <td className="text-sm whitespace-nowrap">{fmtFecha(iso)}</td>
-                <td>
-                  {pasado
-                    ? <span className="chip bg-danger/15 text-danger">Hace {abs} día{abs === 1 ? '' : 's'}</span>
-                    : dias === 0
-                      ? <span className="chip bg-warning/15 text-warning">Hoy</span>
-                      : <span className="chip bg-warning/15 text-warning">En {abs} día{abs === 1 ? '' : 's'}</span>}
-                </td>
-                <td className="text-xs whitespace-nowrap">
-                  <button className="text-primary hover:underline" onClick={() => onIr(p)}>Ver / editar</button>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
+    <tr>
+      <td className="text-sm font-medium">{p.empresa}</td>
+      <td><span className="chip bg-surface-2 text-text">{jurById[p.jurisdiccion_id]?.nombre ?? '—'}</span></td>
+      <td className="text-sm whitespace-nowrap">{fmtFecha(iso)}</td>
+      <td>
+        {pasado
+          ? <span className="chip bg-danger/15 text-danger">Hace {abs} día{abs === 1 ? '' : 's'}</span>
+          : dias === 0
+            ? <span className="chip bg-warning/15 text-warning">Hoy</span>
+            : <span className="chip bg-warning/15 text-warning">En {abs} día{abs === 1 ? '' : 's'}</span>}
+      </td>
+      <td className="text-xs whitespace-nowrap text-right">
+        <button className="text-primary hover:underline" onClick={() => onIr(p)}>Ver / editar</button>
+      </td>
+    </tr>
   );
 }
 
