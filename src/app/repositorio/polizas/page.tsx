@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import {
-  ExternalLink, FileText, Loader2, Plus, RefreshCcw, Search,
-  ShieldCheck, Trash2, Upload, X,
+  Archive, ExternalLink, FileText, Loader2, Plus, RefreshCcw, RotateCcw,
+  Search, Trash2, Upload, X,
 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
@@ -25,9 +25,11 @@ type Poliza = {
   jurisdiccion_id: string;
   fecha_alta: string | null;      // YYYY-MM-DD
   empresa: string;
-  importe: number | null;
+  monto_asegurado: number | null;
   vencimiento: string | null;     // YYYY-MM-DD
+  fecha_revision: string | null;  // YYYY-MM-DD (revisión de vencimiento)
   aviso_baja: string | null;      // YYYY-MM-DD
+  baja_link: string | null;       // link al mail de baja enviado
   poliza_url: string | null;
   poliza_nombre: string | null;
   cert_url: string | null;
@@ -35,6 +37,7 @@ type Poliza = {
   factura_url: string | null;
   factura_nombre: string | null;
   detalle: string | null;
+  finalizada: boolean;
   orden: number;
   created_at: string;
   updated_at: string;
@@ -108,7 +111,6 @@ export default function PolizasPage() {
   const [busy, setBusy] = useState(false);
   const [buscar, setBuscar] = useState('');
   const [filtroJur, setFiltroJur] = useState<string>('todas');
-  const [filtroEstado, setFiltroEstado] = useState<'todos' | Estado>('todos');
 
   async function load() {
     setLoading(true);
@@ -128,13 +130,17 @@ export default function PolizasPage() {
     return m;
   }, [jurs]);
 
-  // ---------- alertas ----------
+  // Vigentes = no finalizadas ; Finalizadas = cerradas / dadas de baja
+  const vigentes = useMemo(() => polizas.filter((p) => !p.finalizada), [polizas]);
+  const finalizadas = useMemo(() => polizas.filter((p) => p.finalizada), [polizas]);
+
+  // ---------- alertas (solo sobre pólizas vigentes) ----------
   const { vencidas, proximas, avisosBaja } = useMemo(() => {
     const hoy = hoy0();
     const limite = new Date(hoy);
     limite.setDate(limite.getDate() + DIAS_AVISO);
 
-    const conVenc = polizas.filter((p) => p.vencimiento);
+    const conVenc = vigentes.filter((p) => p.vencimiento);
     const vencidas = conVenc
       .filter((p) => parseISODate(p.vencimiento!) < hoy)
       .sort((a, b) => parseISODate(a.vencimiento!).getTime() - parseISODate(b.vencimiento!).getTime());
@@ -145,21 +151,21 @@ export default function PolizasPage() {
       })
       .sort((a, b) => parseISODate(a.vencimiento!).getTime() - parseISODate(b.vencimiento!).getTime());
 
-    // Avisos de baja: vencidos o dentro de la ventana (para no dejar pasar la fecha de aviso)
-    const avisosBaja = polizas
+    const avisosBaja = vigentes
       .filter((p) => p.aviso_baja && parseISODate(p.aviso_baja) <= limite)
       .sort((a, b) => parseISODate(a.aviso_baja!).getTime() - parseISODate(b.aviso_baja!).getTime());
 
     return { vencidas, proximas, avisosBaja };
-  }, [polizas]);
+  }, [vigentes]);
 
   // ---------- acciones ----------
   function nuevaPoliza() {
     setEditing({
       id: '', jurisdiccion_id: jurs[0]?.id ?? '', fecha_alta: new Date().toISOString().slice(0, 10),
-      empresa: '', importe: null, vencimiento: null, aviso_baja: null,
-      poliza_url: null, poliza_nombre: null, cert_url: null, cert_nombre: null,
-      factura_url: null, factura_nombre: null, detalle: '', orden: 0, created_at: '', updated_at: '',
+      empresa: '', monto_asegurado: null, vencimiento: null, fecha_revision: null,
+      aviso_baja: null, baja_link: '', poliza_url: null, poliza_nombre: null,
+      cert_url: null, cert_nombre: null, factura_url: null, factura_nombre: null,
+      detalle: '', finalizada: false, orden: 0, created_at: '', updated_at: '',
     });
   }
 
@@ -181,13 +187,16 @@ export default function PolizasPage() {
         jurisdiccion_id: editing.jurisdiccion_id,
         fecha_alta: editing.fecha_alta || null,
         empresa: editing.empresa.trim(),
-        importe: editing.importe,
+        monto_asegurado: editing.monto_asegurado,
         vencimiento: editing.vencimiento || null,
+        fecha_revision: editing.fecha_revision || null,
         aviso_baja: editing.aviso_baja || null,
+        baja_link: editing.baja_link?.trim() || null,
         poliza_url: editing.poliza_url, poliza_nombre: editing.poliza_nombre,
         cert_url: editing.cert_url, cert_nombre: editing.cert_nombre,
         factura_url: editing.factura_url, factura_nombre: editing.factura_nombre,
         detalle: editing.detalle?.trim() || null,
+        finalizada: editing.finalizada,
       };
 
       for (const { key, urlKey, nomKey } of ADJUNTOS) {
@@ -213,6 +222,14 @@ export default function PolizasPage() {
     }
   }
 
+  async function toggleFinalizada(p: Poliza) {
+    const nueva = !p.finalizada;
+    const verbo = nueva ? 'cerrar / finalizar' : 'reabrir';
+    if (!confirm(`¿Querés ${verbo} la póliza de "${p.empresa}"?`)) return;
+    await supabase.from('repo_polizas').update({ finalizada: nueva }).eq('id', p.id);
+    load();
+  }
+
   async function eliminar(p: Poliza) {
     if (!confirm(`¿Eliminar la póliza de "${p.empresa}"? También se borrarán los archivos adjuntos.`)) return;
     const archivos = [p.poliza_url, p.cert_url, p.factura_url].filter(Boolean) as string[];
@@ -231,18 +248,19 @@ export default function PolizasPage() {
     a.click();
   }
 
-  // ---------- filtros de la tabla ----------
-  const filtradas = useMemo(() => {
+  // ---------- filtros (aplican a ambos recuadros) ----------
+  function aplicarFiltros(lista: Poliza[]): Poliza[] {
     const q = norm(buscar);
-    return polizas.filter((p) => {
+    return lista.filter((p) => {
       if (filtroJur !== 'todas' && p.jurisdiccion_id !== filtroJur) return false;
-      if (filtroEstado !== 'todos' && estadoDe(p) !== filtroEstado) return false;
       if (!q) return true;
       return norm(p.empresa).includes(q)
         || norm(jurById[p.jurisdiccion_id]?.nombre ?? '').includes(q)
         || norm(p.detalle ?? '').includes(q);
     });
-  }, [polizas, buscar, filtroJur, filtroEstado, jurById]);
+  }
+  const vigentesFiltradas = useMemo(() => aplicarFiltros(vigentes), [vigentes, buscar, filtroJur, jurById]);
+  const finalizadasFiltradas = useMemo(() => aplicarFiltros(finalizadas), [finalizadas, buscar, filtroJur, jurById]);
 
   const hoy = hoy0();
 
@@ -287,8 +305,8 @@ export default function PolizasPage() {
                 <div className="text-2xl font-semibold text-warning">{avisosBaja.length}</div>
               </div>
               <div className="card p-4">
-                <div className="text-xs text-muted">Total de pólizas</div>
-                <div className="text-2xl font-semibold">{polizas.length}</div>
+                <div className="text-xs text-muted">Vigentes</div>
+                <div className="text-2xl font-semibold">{vigentes.length}</div>
               </div>
             </div>
 
@@ -298,107 +316,63 @@ export default function PolizasPage() {
                 {vencidas.length === 0 ? (
                   <div className="px-4 py-3 text-xs text-muted">Sin pólizas vencidas.</div>
                 ) : (
-                  <TablaAlerta filas={vencidas} campo="vencimiento" jurById={jurById} hoy={hoy} tipo="vencido" onIr={setEditing} />
+                  <TablaAlerta filas={vencidas} campo="vencimiento" jurById={jurById} hoy={hoy} onIr={setEditing} />
                 )}
 
                 <Grupo titulo={`Próximas a vencer (${DIAS_AVISO} días)`} color="warning" />
                 {proximas.length === 0 ? (
                   <div className="px-4 py-3 text-xs text-muted">Sin pólizas próximas a vencer.</div>
                 ) : (
-                  <TablaAlerta filas={proximas} campo="vencimiento" jurById={jurById} hoy={hoy} tipo="proximo" onIr={setEditing} />
+                  <TablaAlerta filas={proximas} campo="vencimiento" jurById={jurById} hoy={hoy} onIr={setEditing} />
                 )}
 
                 <Grupo titulo={`Avisos de baja próximos (${DIAS_AVISO} días)`} color="warning" />
                 {avisosBaja.length === 0 ? (
                   <div className="px-4 py-3 text-xs text-muted">Sin avisos de baja próximos.</div>
                 ) : (
-                  <TablaAlerta filas={avisosBaja} campo="aviso_baja" jurById={jurById} hoy={hoy} tipo="aviso" onIr={setEditing} />
+                  <TablaAlerta filas={avisosBaja} campo="aviso_baja" jurById={jurById} hoy={hoy} onIr={setEditing} />
                 )}
               </div>
             )}
 
-            {/* ---------- Tabla principal ---------- */}
-            <div className="card overflow-hidden">
-              <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
-                <div className="text-sm font-medium">Todas las pólizas</div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <select className="input !w-auto !py-1.5 text-sm" value={filtroJur} onChange={(e) => setFiltroJur(e.target.value)}>
-                    <option value="todas">Todas las jurisdicciones</option>
-                    {jurs.map((j) => <option key={j.id} value={j.id}>{j.nombre}</option>)}
-                  </select>
-                  <select className="input !w-auto !py-1.5 text-sm" value={filtroEstado} onChange={(e) => setFiltroEstado(e.target.value as any)}>
-                    <option value="todos">Todos los estados</option>
-                    <option value="vigente">Vigentes</option>
-                    <option value="vencido">Vencidas</option>
-                    <option value="sin_vencimiento">Sin vencimiento</option>
-                  </select>
-                  <div className="relative">
-                    <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
-                    <input className="input !w-56 !py-1.5 !pl-8 text-sm" placeholder="Buscar empresa..." value={buscar} onChange={(e) => setBuscar(e.target.value)} />
-                  </div>
-                </div>
+            {/* ---------- Filtros ---------- */}
+            <div className="flex items-center justify-end gap-2 flex-wrap">
+              <select className="input !w-auto !py-1.5 text-sm" value={filtroJur} onChange={(e) => setFiltroJur(e.target.value)}>
+                <option value="todas">Todas las jurisdicciones</option>
+                {jurs.map((j) => <option key={j.id} value={j.id}>{j.nombre}</option>)}
+              </select>
+              <div className="relative">
+                <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted pointer-events-none" />
+                <input className="input !w-56 !py-1.5 !pl-8 text-sm" placeholder="Buscar empresa..." value={buscar} onChange={(e) => setBuscar(e.target.value)} />
               </div>
-
-              {filtradas.length === 0 ? (
-                <div className="p-10 text-center text-muted text-sm">
-                  {polizas.length === 0
-                    ? <>No hay pólizas cargadas todavía. <button className="text-primary" onClick={nuevaPoliza}>Agregar la primera</button>.</>
-                    : 'Sin resultados para esos filtros.'}
-                </div>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="tbl min-w-[1040px]">
-                    <thead>
-                      <tr>
-                        <th>Empresa</th>
-                        <th>Jurisdicción</th>
-                        <th>Alta</th>
-                        <th className="text-right">Importe</th>
-                        <th>Vencimiento</th>
-                        <th>Aviso baja</th>
-                        <th>Estado</th>
-                        <th>Adjuntos</th>
-                        <th></th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {filtradas.map((p) => (
-                        <tr key={p.id}>
-                          <td className="font-medium text-sm">{p.empresa}</td>
-                          <td><span className="chip bg-surface-2 text-text">{jurById[p.jurisdiccion_id]?.nombre ?? '—'}</span></td>
-                          <td className="text-sm whitespace-nowrap">{p.fecha_alta ? fmtFecha(p.fecha_alta) : <span className="text-muted">—</span>}</td>
-                          <td className="text-sm text-right whitespace-nowrap">{p.importe != null ? fmtMoney(p.importe) : <span className="text-muted">—</span>}</td>
-                          <td className="text-sm whitespace-nowrap">{p.vencimiento ? fmtFecha(p.vencimiento) : <span className="text-muted">—</span>}</td>
-                          <td className="text-sm whitespace-nowrap">{p.aviso_baja ? fmtFecha(p.aviso_baja) : <span className="text-muted">—</span>}</td>
-                          <td><EstadoChip estado={estadoDe(p)} /></td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              {ADJUNTOS.map(({ key, urlKey, nomKey, label }) => {
-                                const url = p[urlKey] as string | null;
-                                return url ? (
-                                  <button key={key} onClick={() => descargar(url, p[nomKey] as string | null)}
-                                    className="text-primary text-xs inline-flex items-center gap-1 hover:underline" title={`Descargar ${label}`}>
-                                    <FileText size={13} /> {label}
-                                  </button>
-                                ) : (
-                                  <span key={key} className="text-xs text-muted inline-flex items-center gap-1" title={`Sin ${label}`}>
-                                    <FileText size={13} className="opacity-40" /> {label}
-                                  </span>
-                                );
-                              })}
-                            </div>
-                          </td>
-                          <td className="flex gap-3 text-xs whitespace-nowrap">
-                            <button className="text-primary" onClick={() => setEditing(p)}>Editar</button>
-                            <button className="text-danger" onClick={() => eliminar(p)}><Trash2 size={12} className="inline" /></button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
             </div>
+
+            {/* ---------- Recuadro: Pólizas vigentes ---------- */}
+            <TablaPolizas
+              titulo="Pólizas vigentes"
+              variante="vigentes"
+              filas={vigentesFiltradas}
+              totalSinFiltro={vigentes.length}
+              jurById={jurById}
+              onEdit={setEditing}
+              onToggle={toggleFinalizada}
+              onEliminar={eliminar}
+              descargar={descargar}
+              onNueva={nuevaPoliza}
+            />
+
+            {/* ---------- Recuadro: Pólizas cerradas / finalizadas ---------- */}
+            <TablaPolizas
+              titulo="Pólizas cerradas / finalizadas"
+              variante="finalizadas"
+              filas={finalizadasFiltradas}
+              totalSinFiltro={finalizadas.length}
+              jurById={jurById}
+              onEdit={setEditing}
+              onToggle={toggleFinalizada}
+              onEliminar={eliminar}
+              descargar={descargar}
+            />
           </>
         )}
       </div>
@@ -413,7 +387,7 @@ export default function PolizasPage() {
   );
 }
 
-// ===================== Cabecera de grupo =====================
+// ===================== Cabecera de grupo (alertas) =====================
 function Grupo({ titulo, color }: { titulo: string; color: 'danger' | 'warning' }) {
   return (
     <div className="px-4 py-2.5 border-y border-border flex items-center gap-2 bg-surface-2">
@@ -425,13 +399,12 @@ function Grupo({ titulo, color }: { titulo: string; color: 'danger' | 'warning' 
 
 // ===================== Tabla de alertas =====================
 function TablaAlerta({
-  filas, campo, jurById, hoy, tipo, onIr,
+  filas, campo, jurById, hoy, onIr,
 }: {
   filas: Poliza[];
   campo: 'vencimiento' | 'aviso_baja';
   jurById: Record<string, Jurisdiccion>;
   hoy: Date;
-  tipo: 'vencido' | 'proximo' | 'aviso';
   onIr: (p: Poliza) => void;
 }) {
   const etiquetaFecha = campo === 'vencimiento' ? 'Vencimiento' : 'Aviso de baja';
@@ -478,6 +451,119 @@ function TablaAlerta({
   );
 }
 
+// ===================== Tabla de pólizas (vigentes / finalizadas) =====================
+function TablaPolizas({
+  titulo, variante, filas, totalSinFiltro, jurById, onEdit, onToggle, onEliminar, descargar, onNueva,
+}: {
+  titulo: string;
+  variante: 'vigentes' | 'finalizadas';
+  filas: Poliza[];
+  totalSinFiltro: number;
+  jurById: Record<string, Jurisdiccion>;
+  onEdit: (p: Poliza) => void;
+  onToggle: (p: Poliza) => void;
+  onEliminar: (p: Poliza) => void;
+  descargar: (url: string | null, nombre: string | null) => void;
+  onNueva?: () => void;
+}) {
+  const esFinal = variante === 'finalizadas';
+  return (
+    <div className="card overflow-hidden">
+      <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2">
+        <div className="text-sm font-medium">{titulo}</div>
+        <span className="text-xs text-muted">{filas.length} de {totalSinFiltro}</span>
+      </div>
+
+      {filas.length === 0 ? (
+        <div className="p-8 text-center text-muted text-sm">
+          {totalSinFiltro === 0
+            ? (esFinal
+                ? 'No hay pólizas cerradas todavía.'
+                : <>No hay pólizas vigentes. {onNueva && <button className="text-primary" onClick={onNueva}>Agregar la primera</button>}.</>)
+            : 'Sin resultados para esos filtros.'}
+        </div>
+      ) : (
+        <div className="overflow-x-auto">
+          <table className="tbl min-w-[1180px]">
+            <thead>
+              <tr>
+                <th>Empresa</th>
+                <th>Jurisdicción</th>
+                <th>Alta</th>
+                <th className="text-right">Monto asegurado</th>
+                <th>Vencimiento</th>
+                <th>Revisión</th>
+                <th>Aviso baja</th>
+                <th>Link baja</th>
+                <th>Estado</th>
+                <th>Adjuntos</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filas.map((p) => (
+                <tr key={p.id} className={esFinal ? 'opacity-70' : ''}>
+                  <td className="font-medium text-sm">{p.empresa}</td>
+                  <td><span className="chip bg-surface-2 text-text">{jurById[p.jurisdiccion_id]?.nombre ?? '—'}</span></td>
+                  <td className="text-sm whitespace-nowrap">{p.fecha_alta ? fmtFecha(p.fecha_alta) : <span className="text-muted">—</span>}</td>
+                  <td className="text-sm text-right whitespace-nowrap">{p.monto_asegurado != null ? fmtMoney(p.monto_asegurado) : <span className="text-muted">—</span>}</td>
+                  <td className="text-sm whitespace-nowrap">{p.vencimiento ? fmtFecha(p.vencimiento) : <span className="text-muted">—</span>}</td>
+                  <td className="text-sm whitespace-nowrap">{p.fecha_revision ? fmtFecha(p.fecha_revision) : <span className="text-muted">—</span>}</td>
+                  <td className="text-sm whitespace-nowrap">{p.aviso_baja ? fmtFecha(p.aviso_baja) : <span className="text-muted">—</span>}</td>
+                  <td>
+                    {p.baja_link ? (
+                      <a href={p.baja_link} target="_blank" rel="noopener noreferrer" className="text-primary text-sm inline-flex items-center gap-1 hover:underline">
+                        <ExternalLink size={13} /> Abrir
+                      </a>
+                    ) : <span className="text-xs text-muted">—</span>}
+                  </td>
+                  <td>
+                    {esFinal
+                      ? <span className="chip bg-surface-2 text-muted">Finalizada</span>
+                      : <EstadoChip estado={estadoDe(p)} />}
+                  </td>
+                  <td>
+                    <div className="flex items-center gap-2">
+                      {ADJUNTOS.map(({ key, urlKey, nomKey, label }) => {
+                        const url = p[urlKey] as string | null;
+                        return url ? (
+                          <button key={key} onClick={() => descargar(url, p[nomKey] as string | null)}
+                            className="text-primary text-xs inline-flex items-center gap-1 hover:underline" title={`Descargar ${label}`}>
+                            <FileText size={13} /> {label}
+                          </button>
+                        ) : (
+                          <span key={key} className="text-xs text-muted inline-flex items-center gap-1" title={`Sin ${label}`}>
+                            <FileText size={13} className="opacity-40" /> {label}
+                          </span>
+                        );
+                      })}
+                    </div>
+                  </td>
+                  <td className="whitespace-nowrap">
+                    <div className="flex gap-3 text-xs items-center">
+                      <button className="text-primary" onClick={() => onEdit(p)}>Editar</button>
+                      {esFinal ? (
+                        <button className="text-primary inline-flex items-center gap-1" onClick={() => onToggle(p)} title="Reabrir">
+                          <RotateCcw size={12} /> Reabrir
+                        </button>
+                      ) : (
+                        <button className="text-muted hover:text-text inline-flex items-center gap-1" onClick={() => onToggle(p)} title="Cerrar / finalizar">
+                          <Archive size={12} /> Cerrar
+                        </button>
+                      )}
+                      <button className="text-danger" onClick={() => onEliminar(p)}><Trash2 size={12} className="inline" /></button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ===================== Modal póliza =====================
 function PolizaModal({
   editing, setEditing, jurs, guardar, descargar, busy,
@@ -520,10 +606,10 @@ function PolizaModal({
               <input type="date" className="input" value={editing.fecha_alta ?? ''} onChange={(e) => setEditing({ ...editing, fecha_alta: e.target.value || null })} />
             </div>
             <div>
-              <label className="text-xs text-muted">Importe</label>
+              <label className="text-xs text-muted">Monto asegurado</label>
               <input type="number" step="0.01" min="0" className="input" placeholder="0,00"
-                value={editing.importe ?? ''}
-                onChange={(e) => setEditing({ ...editing, importe: e.target.value === '' ? null : Number(e.target.value) })} />
+                value={editing.monto_asegurado ?? ''}
+                onChange={(e) => setEditing({ ...editing, monto_asegurado: e.target.value === '' ? null : Number(e.target.value) })} />
             </div>
           </div>
 
@@ -534,9 +620,20 @@ function PolizaModal({
               <p className="text-xs text-muted mt-1">El estado (Vigente / Vencida) y las alertas se calculan con esta fecha.</p>
             </div>
             <div>
+              <label className="text-xs text-muted">Fecha de revisión de vencimiento</label>
+              <input type="date" className="input" value={editing.fecha_revision ?? ''} onChange={(e) => setEditing({ ...editing, fecha_revision: e.target.value || null })} />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
               <label className="text-xs text-muted">Fecha de aviso de baja</label>
               <input type="date" className="input" value={editing.aviso_baja ?? ''} onChange={(e) => setEditing({ ...editing, aviso_baja: e.target.value || null })} />
               <p className="text-xs text-muted mt-1">Genera una alerta aparte para no pasarse la fecha de aviso.</p>
+            </div>
+            <div>
+              <label className="text-xs text-muted">Link (mail de baja enviado)</label>
+              <input className="input" placeholder="https://..." value={editing.baja_link ?? ''} onChange={(e) => setEditing({ ...editing, baja_link: e.target.value })} />
             </div>
           </div>
 
@@ -586,6 +683,11 @@ function PolizaModal({
             <label className="text-xs text-muted">Detalle</label>
             <textarea className="input min-h-20" value={editing.detalle ?? ''} onChange={(e) => setEditing({ ...editing, detalle: e.target.value })} />
           </div>
+
+          <label className="flex items-center gap-2 text-sm cursor-pointer select-none">
+            <input type="checkbox" checked={editing.finalizada} onChange={(e) => setEditing({ ...editing, finalizada: e.target.checked })} />
+            Póliza cerrada / finalizada (dada de baja)
+          </label>
         </div>
 
         <div className="flex justify-end gap-2 mt-4">
