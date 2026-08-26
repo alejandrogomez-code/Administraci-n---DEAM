@@ -490,7 +490,7 @@ function TablaPolizas({
                 <th>Empresa</th>
                 <th>Jurisdicción</th>
                 <th>Alta</th>
-                <th className="text-right">Monto asegurado</th>
+                <th className="!text-right">Monto asegurado</th>
                 <th>Vencimiento</th>
                 <th>Revisión</th>
                 <th>Aviso baja</th>
