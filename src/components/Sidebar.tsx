@@ -6,7 +6,7 @@ import { useEffect, useState } from 'react';
 import {
   BookOpen, Building2, ChevronDown, ChevronLeft, ChevronRight,
   ClipboardCheck, FileSpreadsheet, FileText, LayoutDashboard, ListChecks, LogOut,
-  Settings, Wallet, Banknote, Receipt, Zap, TrendingUp, Bot, FolderOpen,
+  Settings, Wallet, Banknote, Receipt, Zap, TrendingUp, Bot, FolderOpen, ShieldCheck,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 
@@ -26,7 +26,14 @@ const items: Item[] = [
       { href: '/contabilidad/auditoria', label: 'Auditoría trimestral', icon: ClipboardCheck },
     ],
   },
-  { href: '/repositorio', label: 'Repositorio', icon: FolderOpen },
+  {
+    href: '/repositorio',
+    label: 'Repositorio',
+    icon: FolderOpen,
+    children: [
+      { href: '/repositorio/polizas', label: 'Gestión de Pólizas', icon: ShieldCheck },
+    ],
+  },
   {
     href: '/tesoreria',
     label: 'Tesorería',
