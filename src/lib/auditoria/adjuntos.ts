@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/client';
+import { descargarDeStorage } from '@/lib/storage/descargar';
 
 /**
  * Unificación de adjuntos entre la auditoría trimestral y el gestor de tareas.
@@ -60,13 +61,14 @@ export async function adjuntosDelGestor(
 }
 
 /**
- * Genera un enlace firmado para descargar un adjunto, eligiendo el bucket
- * según el origen: `audit-files` para auditoría, `tarea-files` para gestor.
+ * Descarga un adjunto eligiendo el bucket según el origen:
+ * `audit-files` para auditoría, `tarea-files` para gestor.
  */
-export async function urlFirmada(archivoUrl: string, origen: 'auditoria' | 'gestor'): Promise<string | null> {
-  const supabase = createClient();
+export async function descargarAdjunto(
+  archivoUrl: string,
+  archivoNombre: string,
+  origen: 'auditoria' | 'gestor',
+) {
   const bucket = origen === 'gestor' ? 'tarea-files' : 'audit-files';
-  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(archivoUrl, 60);
-  if (error || !data?.signedUrl) return null;
-  return data.signedUrl;
+  return descargarDeStorage(bucket, archivoUrl, archivoNombre);
 }
