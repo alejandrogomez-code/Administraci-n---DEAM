@@ -10,7 +10,7 @@ import StatusChip from '@/components/StatusChip';
 import ProgressBar from '@/components/ProgressBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFecha } from '@/lib/format';
-import { adjuntosDelGestor, urlFirmada } from '@/lib/auditoria/adjuntos';
+import { adjuntosDelGestor, descargarAdjunto } from '@/lib/auditoria/adjuntos';
 
 type Task = {
   id: string;
@@ -451,12 +451,8 @@ function AdjuntosModal({ taskId, task, onClose }: {
   }
 
   async function descargar(a: Adjunto) {
-    const signed = await urlFirmada(a.archivo_url, a.origen ?? 'auditoria');
-    if (!signed) { alert('No se pudo generar el enlace.'); return; }
-    const link = document.createElement('a');
-    link.href = signed;
-    link.download = a.archivo_nombre;
-    link.click();
+    const r = await descargarAdjunto(a.archivo_url, a.archivo_nombre, a.origen ?? 'auditoria');
+    if (!r.ok) alert(`No se pudo descargar el archivo: ${r.error}`);
   }
 
   async function eliminar(a: Adjunto) {
