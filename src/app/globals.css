@@ -9,24 +9,24 @@
    ===================================================================== */
 :root,
 :root.light {
-  --bg: 244 243 239;
+  --bg: 245 244 240;
   --surface: 255 255 255;
   --surface-2: 248 247 243;
-  --border: 226 227 221;
+  --border: 231 230 224;
   --text: 23 32 30;
   --muted: 104 116 113;
   --primary: 17 87 79;        /* verde petróleo: links, activos, progreso */
   --primary-fg: 255 255 255;
   --accent: 47 111 176;       /* azul: "en proceso" */
-  --cta: 192 138 46;          /* ocre: acción principal */
-  --cta-fg: 26 20 6;
+  --cta: 201 161 90;          /* ocre: acción principal */
+  --cta-fg: 36 26 6;
   --ink: 21 48 44;            /* verde tinta: barra lateral, destacados */
   --ink-2: 36 71 63;
   --ink-fg: 227 236 233;
   --ink-muted: 143 168 162;
   --success: 28 138 110;
-  --warning: 176 108 12;
-  --danger: 180 43 43;
+  --warning: 158 104 20;
+  --danger: 168 67 59;
   color-scheme: light;
 }
 
@@ -53,11 +53,11 @@
 }
 
 /* Tamaño de letra elegido por el usuario (toda la app escala en rem) */
-html { font-size: 15px; }
-html.fs-s  { font-size: 14px; }
-html.fs-m  { font-size: 15px; }
-html.fs-l  { font-size: 16px; }
-html.fs-xl { font-size: 17px; }
+html { font-size: 14px; }
+html.fs-s  { font-size: 13px; }
+html.fs-m  { font-size: 14px; }
+html.fs-l  { font-size: 15px; }
+html.fs-xl { font-size: 16px; }
 
 /* =============== BASE =============== */
 html, body {
@@ -87,44 +87,44 @@ input[type=checkbox], input[type=radio] { accent-color: rgb(var(--primary)); }
 .input:focus { @apply ring-2 ring-primary/25 border-primary; }
 
 .btn {
-  @apply inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-[10px] text-sm font-semibold transition select-none disabled:opacity-50 disabled:pointer-events-none;
+  @apply inline-flex items-center justify-center gap-2 px-3.5 py-2 rounded-[9px] text-sm font-medium transition select-none disabled:opacity-50 disabled:pointer-events-none;
 }
 .btn-primary   { @apply btn bg-cta text-cta-fg hover:brightness-95; }
 .btn-secondary { @apply btn bg-surface text-text border border-border hover:bg-surface-2; }
 .btn-ghost     { @apply btn text-text hover:bg-surface-2; }
 .btn-danger    { @apply btn bg-danger text-white hover:opacity-90; }
 
-.card { @apply bg-surface border border-border rounded-2xl; }
+.card { @apply bg-surface border border-border rounded-[14px]; }
 
 /* Tarjeta de indicador (KPI) */
 .kpi { @apply card px-5 py-4; }
 .kpi-label { @apply text-sm text-muted; }
-.kpi-value { @apply text-3xl font-bold tracking-tight mt-1 tabular; }
+.kpi-value { @apply text-[1.5rem] font-semibold tracking-tight mt-1 tabular; }
 
 /* Chips de estado */
-.chip { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-xs font-semibold whitespace-nowrap; }
-.chip-pendiente   { @apply chip bg-warning/15 text-warning; }
-.chip-en-proceso  { @apply chip bg-accent/15 text-accent; }
-.chip-completado  { @apply chip bg-success/15 text-success; }
-.chip-ok          { @apply chip bg-success/15 text-success; }
-.chip-diferencia  { @apply chip bg-warning/15 text-warning; }
-.chip-falta-sap   { @apply chip bg-danger/15 text-danger; }
-.chip-falta-afip  { @apply chip bg-accent/15 text-accent; }
-.chip-vencido     { @apply chip bg-danger/15 text-danger; }
+.chip { @apply inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium whitespace-nowrap; }
+.chip-pendiente   { @apply chip bg-warning/10 text-warning; }
+.chip-en-proceso  { @apply chip bg-accent/10 text-accent; }
+.chip-completado  { @apply chip bg-success/10 text-success; }
+.chip-ok          { @apply chip bg-success/10 text-success; }
+.chip-diferencia  { @apply chip bg-warning/10 text-warning; }
+.chip-falta-sap   { @apply chip bg-danger/10 text-danger; }
+.chip-falta-afip  { @apply chip bg-accent/10 text-accent; }
+.chip-vencido     { @apply chip bg-danger/10 text-danger; }
 .chip-hoy         { @apply chip bg-primary/10 text-primary; }
 .chip-neutro      { @apply chip bg-muted/15 text-muted; }
 
 /* Tabla */
 .tbl { @apply w-full text-sm; }
-.tbl thead th { @apply text-left text-[0.8rem] text-muted font-semibold px-3 py-2.5 border-b border-border bg-surface-2 whitespace-nowrap; }
+.tbl thead th { @apply text-left text-[0.8rem] text-muted font-medium px-3 py-2.5 border-b border-border bg-surface-2 whitespace-nowrap; }
 .tbl tbody td { @apply px-3 py-2.5 border-b border-border/70; }
 .tbl tbody tr:last-child td { @apply border-b-0; }
 .tbl tbody tr:hover { @apply bg-surface-2; }
 
 /* Pestañas segmentadas */
-.seg { @apply inline-flex items-center rounded-[10px] border border-border p-0.5 text-sm bg-surface; }
-.seg > * { @apply px-3 py-1 rounded-lg text-muted transition whitespace-nowrap; }
-.seg > .on { @apply bg-ink text-ink-fg font-semibold; }
+.seg { @apply inline-flex items-center gap-0.5 text-[0.85rem]; }
+.seg > * { @apply px-2.5 py-1 rounded-lg text-muted transition whitespace-nowrap; }
+.seg > .on { @apply bg-primary/10 text-primary font-semibold; }
 
 /* Esqueleto de carga */
 .skel { @apply bg-border/60 rounded animate-pulse; }

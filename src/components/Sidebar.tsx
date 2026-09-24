@@ -91,13 +91,13 @@ export default function Sidebar({ movil = false, onNavegar }: { movil?: boolean;
 
   const base = 'flex items-center gap-3 rounded-[10px] transition';
   const claseItem = (on: boolean) =>
-    `${base} ${col ? 'justify-center h-10 w-10 mx-auto' : 'px-3 py-2'} ${on ? 'bg-ink-2 text-white font-semibold' : 'text-ink-fg/90 hover:bg-white/5 hover:text-white'}`;
+    `${base} ${col ? 'justify-center h-10 w-10 mx-auto' : 'px-3 py-[0.45rem] text-[0.95rem]'} ${on ? 'bg-ink-2 text-white font-medium' : 'text-ink-fg/85 hover:bg-white/5 hover:text-white'}`;
 
   function Badge({ n }: { n: number }) {
     if (!n) return null;
     return col
-      ? <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-cta text-cta-fg text-[10px] font-bold grid place-items-center">{n}</span>
-      : <span className="ml-auto text-[0.72rem] font-bold bg-cta text-cta-fg rounded-md px-1.5 py-px tabular" title={`${n} vencidos`}>{n}</span>;
+      ? <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-cta text-cta-fg text-[10px] font-semibold grid place-items-center">{n}</span>
+      : <span className="ml-auto text-[0.72rem] font-semibold bg-cta/20 text-[#E7C58A] rounded-md px-1.5 tabular" title={`${n} vencidos`}>{n}</span>;
   }
 
   function renderItem(it: Item) {
@@ -117,7 +117,7 @@ export default function Sidebar({ movil = false, onNavegar }: { movil?: boolean;
     const abierto = abiertos[it.href] ?? on;
     return (
       <div key={it.href}>
-        <button onClick={() => toggleGrupo(it.href, abierto)} className={`${base} w-full px-3 py-2 ${on ? 'text-white font-semibold' : 'text-ink-fg/90 hover:bg-white/5 hover:text-white'}`} aria-expanded={abierto}>
+        <button onClick={() => toggleGrupo(it.href, abierto)} className={`${base} w-full px-3 py-[0.45rem] text-[0.95rem] ${on ? 'text-white font-medium' : 'text-ink-fg/85 hover:bg-white/5 hover:text-white'}`} aria-expanded={abierto}>
           <Icon size={18} className="shrink-0" />
           <span className="truncate">{it.label}</span>
           <Badge n={n} />
@@ -125,9 +125,9 @@ export default function Sidebar({ movil = false, onNavegar }: { movil?: boolean;
         </button>
         {abierto && (
           <div className="ml-[1.35rem] mt-0.5 mb-1 border-l border-ink-2 pl-2 space-y-0.5">
-            <Link href={it.href} onClick={onNavegar} className={`block px-3 py-1.5 rounded-lg text-[0.85rem] ${path === it.href ? 'bg-ink-2 text-white font-semibold' : 'text-ink-muted hover:text-white'}`}>Resumen</Link>
+            <Link href={it.href} onClick={onNavegar} className={`block px-3 py-1.5 rounded-lg text-[0.85rem] ${path === it.href ? 'bg-ink-2 text-white font-medium' : 'text-ink-muted hover:text-white'}`}>Resumen</Link>
             {it.children!.map((c) => (
-              <Link key={c.href} href={c.href} onClick={onNavegar} className={`block px-3 py-1.5 rounded-lg text-[0.9rem] ${activo(c.href) ? 'bg-ink-2 text-white font-semibold' : 'text-ink-fg/85 hover:text-white'}`}>{c.label}</Link>
+              <Link key={c.href} href={c.href} onClick={onNavegar} className={`block px-3 py-1.5 rounded-lg text-[0.9rem] ${activo(c.href) ? 'bg-ink-2 text-white font-medium' : 'text-ink-fg/85 hover:text-white'}`}>{c.label}</Link>
             ))}
           </div>
         )}
@@ -139,7 +139,7 @@ export default function Sidebar({ movil = false, onNavegar }: { movil?: boolean;
   const usuario = sesion?.email?.split('@')[0] ?? '';
 
   return (
-    <aside className={`${movil ? 'w-[17.5rem] h-full' : `${col ? 'w-[4.5rem]' : 'w-[16.5rem]'} h-screen sticky top-0 hidden lg:flex`} shrink-0 bg-ink text-ink-fg flex flex-col transition-[width]`}>
+    <aside className={`${movil ? 'w-[17.5rem] h-full' : `${col ? 'w-[4.5rem]' : 'w-[16rem]'} h-screen sticky top-0 hidden lg:flex`} shrink-0 bg-ink text-ink-fg flex flex-col transition-[width]`}>
       <div className={`flex items-center gap-3 ${col ? 'justify-center px-2' : 'px-5'} pt-5 pb-4`}>
         <div className="w-10 h-10 rounded-xl bg-cta text-cta-fg grid place-items-center font-bold shrink-0">AD</div>
         {!col && (
@@ -152,7 +152,7 @@ export default function Sidebar({ movil = false, onNavegar }: { movil?: boolean;
 
       <nav className="flex-1 overflow-y-auto px-2.5 pb-3 space-y-0.5" aria-label="Principal">
         {GENERAL.filter(visible).map(renderItem)}
-        {!col && !soloRepo && <div className="text-[0.7rem] font-semibold tracking-wider text-ink-muted px-3 pt-5 pb-1.5">MÓDULOS</div>}
+        {!col && !soloRepo && <div className="text-[0.78rem] font-medium text-ink-muted px-3 pt-5 pb-1.5">Módulos</div>}
         {col && <div className="h-4" />}
         {MODULOS.filter(visible).map(renderItem)}
         {!soloRepo && <div className="pt-3">{renderItem(CONFIG)}</div>}

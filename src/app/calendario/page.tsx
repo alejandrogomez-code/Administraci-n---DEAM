@@ -75,7 +75,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: {
               const esHoy = f === hoy;
               return (
                 <div key={f} className={`min-h-[7.5rem] p-2 border-border ${k % 7 ? 'border-l' : ''} ${k >= 7 ? 'border-t' : ''} ${fuera ? 'bg-surface-2/60' : ''}`}>
-                  <div className={`text-sm mb-1 tabular ${esHoy ? 'inline-grid place-items-center w-7 h-7 rounded-full bg-ink text-white font-bold' : fuera ? 'text-muted/60' : 'font-semibold'}`}>{+f.slice(8)}</div>
+                  <div className={`text-sm mb-1 tabular ${esHoy ? 'inline-grid place-items-center w-7 h-7 rounded-full bg-ink text-white font-semibold' : fuera ? 'text-muted/60' : 'font-semibold'}`}>{+f.slice(8)}</div>
                   <ul className="space-y-1">
                     {items.slice(0, MAX_POR_DIA).map((i) => (
                       <li key={i.key}>
@@ -98,7 +98,7 @@ export default async function CalendarioPage({ searchParams }: { searchParams: {
           {delMes.length === 0 && <div className="card px-4 py-8 text-center text-muted">No hay pendientes con fecha este mes.</div>}
           {Array.from(porDia.entries()).map(([f, items]) => (
             <section key={f} className="card overflow-hidden">
-              <h2 className={`px-4 py-2.5 text-sm font-bold border-b border-border ${f === hoy ? 'bg-ink text-white' : 'bg-surface-2'}`}>
+              <h2 className={`px-4 py-2.5 text-sm font-semibold border-b border-border ${f === hoy ? 'bg-ink text-white' : 'bg-surface-2'}`}>
                 {DIAS[(diaSemana(f) + 6) % 7]} {+f.slice(8)}{f === hoy ? ' · Hoy' : ''}
               </h2>
               <ul>

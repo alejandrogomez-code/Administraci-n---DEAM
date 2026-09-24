@@ -15,7 +15,7 @@ function Fila({ label, valor }: { label: string; valor: React.ReactNode }) {
 function Tarjeta({ href, titulo, icono: I, children }: { href: string; titulo: string; icono: any; children: React.ReactNode }) {
   return (
     <div className="card px-5 py-4">
-      <Link href={href} className="flex items-center gap-2.5 font-bold mb-2 hover:text-primary"><I size={18} className="text-cta" />{titulo}</Link>
+      <Link href={href} className="flex items-center gap-2.5 font-semibold mb-2 hover:text-primary"><I size={18} className="text-cta" />{titulo}</Link>
       {children}
     </div>
   );

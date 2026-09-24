@@ -36,7 +36,7 @@ export function IconoItem({ item, hoy, size = 18 }: { item: ItemAgenda; hoy: str
 export function BloqueFecha({ fecha }: { fecha: string }) {
   return (
     <div className="w-11 shrink-0 text-center rounded-[10px] border border-border py-1 leading-none">
-      <div className="text-[1.05rem] font-bold tabular">{+fecha.slice(8, 10)}</div>
+      <div className="text-[1.05rem] font-semibold tabular">{+fecha.slice(8, 10)}</div>
       <div className="text-[0.62rem] font-semibold text-muted mt-0.5">{MESES_ABR[+fecha.slice(5, 7) - 1]}</div>
     </div>
   );

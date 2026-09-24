@@ -36,14 +36,14 @@ export default async function InicioPage() {
           <Link href="/tareas?nueva=1" className="btn-primary"><Plus size={16} />Nueva tarea</Link>
         </>}
       />
-      <div className="px-4 sm:px-6 py-5 space-y-5">
+      <div className="px-4 sm:px-6 py-5 space-y-4">
         <Indicadores tareas={tareas.length} vencidas={tareasVencidas} d={datos} />
-        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_21rem] gap-5 items-start">
-          <div className="space-y-5 min-w-0">
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_19.5rem] gap-4 items-start">
+          <div className="space-y-4 min-w-0">
             <ListaAtencion items={agenda} hoy={hoy} />
             <ResumenModulos d={datos} />
           </div>
-          <div className="space-y-5">
+          <div className="space-y-4">
             <ProximasFechas items={proximas} />
             <Accesos accesos={datos.accesos} />
           </div>

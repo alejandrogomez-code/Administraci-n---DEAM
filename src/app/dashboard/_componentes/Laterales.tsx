@@ -6,7 +6,7 @@ export function ProximasFechas({ items }: { items: ItemAgenda[] }) {
   return (
     <section className="card overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <h2 className="text-lg font-bold">Próximas fechas</h2>
+        <h2 className="text-[1.05rem] font-semibold">Próximas fechas</h2>
         <Link href="/calendario" className="text-sm font-semibold text-primary hover:underline">Calendario</Link>
       </div>
       {items.length === 0 ? (
@@ -38,7 +38,7 @@ export function Accesos({ accesos }: { accesos: { id: string; titulo: string; ur
   return (
     <section className="card overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 border-b border-border">
-        <h2 className="text-lg font-bold">Accesos directos</h2>
+        <h2 className="text-[1.05rem] font-semibold">Accesos directos</h2>
         <Link href="/configuracion/accesos-directos" className="btn-secondary px-3 py-1.5">Editar</Link>
       </div>
       {accesos.length === 0 ? (

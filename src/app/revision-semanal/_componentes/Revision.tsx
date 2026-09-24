@@ -102,7 +102,7 @@ export default function Revision({ items: inicial, hechos, hoy }: { items: ItemA
 function Seccion({ titulo, n, vacio, children }: { titulo: string; n: number; vacio?: string; children: React.ReactNode }) {
   return (
     <section className="card overflow-hidden">
-      <h2 className="px-5 py-3.5 border-b border-border font-bold flex items-center gap-2">{titulo}<span className="chip-neutro">{n}</span></h2>
+      <h2 className="px-5 py-3.5 border-b border-border font-semibold flex items-center gap-2">{titulo}<span className="chip-neutro">{n}</span></h2>
       {n === 0 ? <p className="px-5 py-5 text-muted text-sm">{vacio}</p> : <ul className="divide-y divide-border/70">{children}</ul>}
     </section>
   );
