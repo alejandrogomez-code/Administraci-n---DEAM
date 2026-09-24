@@ -75,10 +75,18 @@ Tarjetas tipo Odoo de acceso rápido + KPIs.
 - **Tareas modelo del cierre:** CRUD de la plantilla de tareas; podés editar las 11 cargadas o agregar nuevas.
 - **Categorías:** etiquetas clasificadas por tipo. Podés agregar nuevos tipos.
 
-## Sistema de temas
-- 6 paletas: Azul corporativo, Verde petróleo, Gris oscuro / eléctrico, Minimalista, Bordó / crema, Verde oliva.
-- Modo claro / oscuro independiente de la paleta.
-- Preferencias guardadas en localStorage. Selector en el TopBar (icono paleta).
+## Diseño y tema
+- Paleta única verde tinta + ocre, tipografía Plus Jakarta Sans (paquete `@fontsource/plus-jakarta-sans`).
+- Modo claro / oscuro y 4 tamaños de letra, desde el pie de la barra lateral. Se guardan en localStorage.
+- Tokens de color en `src/app/globals.css` (`--ink`, `--cta`, `--primary`, etc.). Clases base: `card`, `btn-primary`, `btn-secondary`, `input`, `tbl`, `chip-*`, `seg`, `kpi`.
+- Avisos y confirmaciones propias en `src/components/feedback.tsx`: `avisar()`, `confirmar()`, `pedirTexto()`. No usar `alert`, `confirm` ni `prompt` del navegador.
+- Adaptada a celular: menú desplegable en pantallas chicas.
+
+## Inicio, Calendario y Revisión semanal
+- `src/lib/agenda.ts` junta los pendientes de todos los módulos (tareas, tareas de cierre y auditoría, diferencias de IVA, pólizas por vencer y propuestas de cheques en borrador). Lo usan el Inicio, el Calendario, la Revisión semanal y los contadores de la barra lateral.
+- `/dashboard`: indicadores, "Requiere atención", resumen por módulo, próximas fechas y accesos directos.
+- `/calendario`: vista mensual (lista por día en el celular).
+- `/revision-semanal`: vencidos, próximos 7 días, tareas sin fecha y lo hecho en la semana; permite completar y reprogramar.
 
 ## Formato Argentina
 Todos los números usan **punto como separador de miles y coma como decimal** (`$ 1.234.567,89`). Las fechas se muestran como `dd/mm/yyyy`.

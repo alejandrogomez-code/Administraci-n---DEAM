@@ -1,30 +1,39 @@
 import type { Config } from "tailwindcss";
 
+const c = (v: string) => `rgb(var(--${v}) / <alpha-value>)`;
+
 const config: Config = {
   content: ["./src/**/*.{js,ts,jsx,tsx,mdx}"],
   darkMode: "class",
   theme: {
     extend: {
       colors: {
-        bg: "rgb(var(--bg) / <alpha-value>)",
-        surface: "rgb(var(--surface) / <alpha-value>)",
-        "surface-2": "rgb(var(--surface-2) / <alpha-value>)",
-        border: "rgb(var(--border) / <alpha-value>)",
-        text: "rgb(var(--text) / <alpha-value>)",
-        muted: "rgb(var(--muted) / <alpha-value>)",
-        primary: "rgb(var(--primary) / <alpha-value>)",
-        "primary-fg": "rgb(var(--primary-fg) / <alpha-value>)",
-        accent: "rgb(var(--accent) / <alpha-value>)",
-        success: "rgb(var(--success) / <alpha-value>)",
-        warning: "rgb(var(--warning) / <alpha-value>)",
-        danger: "rgb(var(--danger) / <alpha-value>)",
+        bg: c("bg"),
+        surface: c("surface"),
+        "surface-2": c("surface-2"),
+        border: c("border"),
+        text: c("text"),
+        muted: c("muted"),
+        primary: c("primary"),
+        "primary-fg": c("primary-fg"),
+        accent: c("accent"),
+        cta: c("cta"),
+        "cta-fg": c("cta-fg"),
+        ink: c("ink"),
+        "ink-2": c("ink-2"),
+        "ink-fg": c("ink-fg"),
+        "ink-muted": c("ink-muted"),
+        success: c("success"),
+        warning: c("warning"),
+        danger: c("danger"),
       },
       borderRadius: {
-        DEFAULT: "0.5rem",
+        DEFAULT: "0.625rem",
       },
       boxShadow: {
-        soft: "0 1px 2px 0 rgb(0 0 0 / 0.04), 0 1px 3px 0 rgb(0 0 0 / 0.06)",
-        card: "0 1px 2px rgb(0 0 0 / 0.04), 0 4px 12px rgb(0 0 0 / 0.04)",
+        soft: "0 1px 2px rgb(0 0 0 / 0.04)",
+        card: "0 2px 10px rgb(0 0 0 / 0.06)",
+        pop: "0 12px 32px rgb(0 0 0 / 0.14)",
       },
     },
   },
