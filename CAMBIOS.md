@@ -5,6 +5,11 @@
 - Se reemplazaron las 6 paletas por una sola, con modo claro/oscuro y 4 tamaños de letra (pie de la barra lateral).
 - Login rediseñado, con mensajes de error en español.
 
+## Ajuste de estilo (Inicio más suave)
+- Letra base de 15 a 14 px (los cuatro tamaños bajan un punto), títulos y números en seminegrita, ocre y rojo menos saturados, estados en pastillas redondeadas más claras.
+- Inicio: indicadores en tarjetas separadas (con barra de avance en el cierre) y "Requiere atención" agrupada en Vencido / Hoy / Para revisar / Esta semana, sin columnas.
+- Barra lateral con letra más chica y contadores menos llamativos.
+
 ## Experiencia de uso
 - Se eliminó el "Cargando..." de pantalla completa: el usuario y el rol se cargan una sola vez por sesión (`src/lib/sesion.ts`). Donde una pantalla espera datos se muestra un esqueleto (`src/components/Cargando.tsx`).
 - Se reemplazaron 64 `alert`, 32 `confirm` y 6 `prompt` por avisos y diálogos propios (`src/components/feedback.tsx`).
