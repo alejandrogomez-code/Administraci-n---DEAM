@@ -11,6 +11,8 @@ import { fmtFecha, fmtMoney, fmtNum } from '@/lib/format';
 import { aPercibirCheque, calcularResumen, diasEntre, descuentoFactor } from '@/lib/cheques/calculos';
 import { generarSnapshot, type ChequeSnapshot } from '@/lib/cheques/snapshot';
 import * as XLSX from 'xlsx';
+import { avisar, confirmar } from '@/components/feedback';
+import { CargandoPagina } from '@/components/Cargando';
 
 type Propuesta = {
   id: string;
@@ -120,19 +122,19 @@ export default function PropuestaDetallePage() {
     try {
       await generarSnapshot(supabase, prop.id);
       await load();
-      if (!silencioso) alert('Snapshot regenerado correctamente.');
+      if (!silencioso) avisar('Snapshot regenerado correctamente.');
     } catch (e: any) {
-      alert('Error generando snapshot: ' + (e?.message || e));
+      avisar('Error generando snapshot: ' + (e?.message || e));
     } finally {
       setSnapshotting(false);
     }
   }
 
   async function regenerarSnapshotConfirm() {
-    if (!confirm(
+    if (!(await confirmar(
       'Regenerar el snapshot toma los cheques actualmente vinculados a esta propuesta ' +
       'y reemplaza los datos congelados.\n\n¿Continuar?'
-    )) return;
+    ))) return;
     await ejecutarSnapshot(false);
   }
 
@@ -142,19 +144,19 @@ export default function PropuestaDetallePage() {
     setCheques((prev) => prev.map((x) => x.id === c.id ? { ...x, importe: nuevoImporte } : x));
     const { error } = await supabase.from('cheques').update({ importe: nuevoImporte }).eq('id', c.id);
     if (error) {
-      alert('No se pudo guardar el importe: ' + error.message);
+      avisar('No se pudo guardar el importe: ' + error.message);
       load();
     }
   }
 
   async function quitarCheque(c: Cheque) {
-    if (!confirm('Quitar este cheque de la propuesta? Vuelve al universo de cheques disponibles.')) return;
+    if (!(await confirmar('Quitar este cheque de la propuesta? Vuelve al universo de cheques disponibles.'))) return;
     await supabase.from('cheques').update({ propuesta_id: null }).eq('id', c.id);
     load();
   }
 
   async function eliminarPropuesta() {
-    if (!confirm('¿Eliminar esta propuesta? Los cheques vuelven a estar disponibles.')) return;
+    if (!(await confirmar('¿Eliminar esta propuesta? Los cheques vuelven a estar disponibles.'))) return;
     await supabase.from('cheques').update({ propuesta_id: null }).eq('propuesta_id', id);
     await supabase.from('propuestas_cheques').delete().eq('id', id);
     router.push('/tesoreria/venta-cheques');
@@ -233,7 +235,7 @@ export default function PropuestaDetallePage() {
     XLSX.writeFile(wb, `Propuesta_${prop.nombre.replace(/[^\w-]+/g, '_')}.xlsx`);
   }
 
-  if (loading) return <AppShell><TopBar titulo="Cargando..." /></AppShell>;
+  if (loading) return <AppShell><CargandoPagina /></AppShell>;
   if (!prop) return <AppShell><TopBar titulo="No encontrado" /></AppShell>;
 
   return (
@@ -257,7 +259,7 @@ export default function PropuestaDetallePage() {
           <button onClick={descargarExcel} className="btn-primary"><FileDown size={14}/> Descargar Excel</button>
         </>}
       />
-      <div className="p-6 space-y-6">
+      <div className="px-4 sm:px-6 py-5 space-y-6">
 
         {/* PARÁMETROS DEL SIMULADOR */}
         <div className="card p-5">

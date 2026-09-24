@@ -160,7 +160,7 @@ export default function NuevoTrimestrePage() {
         subtitulo={`${NOMBRES_TRIM[trimestre]} · ${anio}`}
         actions={<Link href="/contabilidad/auditoria" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>}
       />
-      <div className="p-6 max-w-4xl space-y-6">
+      <div className="px-4 sm:px-6 py-5 max-w-4xl space-y-6">
         <div className="card p-5 space-y-4">
           <h3 className="font-medium">Período</h3>
           <div className="grid grid-cols-2 gap-3">
@@ -208,7 +208,7 @@ export default function NuevoTrimestrePage() {
           <div className="space-y-4">
             {gruposTemplates.map((g) => (
               <div key={g.rubro}>
-                <div className="text-xs uppercase tracking-wide text-primary font-semibold border-b border-border pb-1 mb-2">
+                <div className="text-xs text-primary font-semibold border-b border-border pb-1 mb-2">
                   {g.rubro || 'Sin rubro'}
                 </div>
                 <ul className="space-y-2">

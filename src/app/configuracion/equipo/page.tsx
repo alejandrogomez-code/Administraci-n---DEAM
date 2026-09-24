@@ -6,6 +6,8 @@ import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
+import { avisar, confirmar } from '@/components/feedback';
+import { Cargando } from '@/components/Cargando';
 
 type Miembro = {
   id: string;
@@ -32,7 +34,7 @@ export default function EquipoPage() {
     if (!nuevo.trim()) return;
     const maxOrden = items.reduce((m, x) => Math.max(m, x.orden), 0) + 1;
     const { error } = await supabase.from('team_members').insert({ nombre: nuevo.trim(), orden: maxOrden, activo: true });
-    if (error) { alert(error.message); return; }
+    if (error) { avisar(error.message); return; }
     setNuevo('');
     load();
   }
@@ -43,7 +45,7 @@ export default function EquipoPage() {
   }
 
   async function eliminar(m: Miembro) {
-    if (!confirm(`¿Eliminar a "${m.nombre}"? Las tareas asignadas pasarán a "Sin asignar".`)) return;
+    if (!(await confirmar(`¿Eliminar a "${m.nombre}"? Las tareas asignadas pasarán a "Sin asignar".`))) return;
     await supabase.from('team_members').delete().eq('id', m.id);
     load();
   }
@@ -55,7 +57,7 @@ export default function EquipoPage() {
         subtitulo="Personas que pueden ser asignadas como responsables de tareas. Independiente de los usuarios con login en la app."
         actions={<Link href="/configuracion" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>}
       />
-      <div className="p-6 max-w-2xl space-y-4">
+      <div className="px-4 sm:px-6 py-5 max-w-2xl space-y-4">
         <div className="card p-4">
           <label className="text-xs text-muted">Agregar persona</label>
           <div className="flex gap-2 mt-1">
@@ -72,7 +74,7 @@ export default function EquipoPage() {
 
         <div className="card overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-muted">Cargando...</div>
+            <Cargando filas={5} />
           ) : items.length === 0 ? (
             <div className="p-10 text-center text-muted text-sm">Sin miembros todavía.</div>
           ) : (

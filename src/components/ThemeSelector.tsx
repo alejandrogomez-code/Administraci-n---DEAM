@@ -1,43 +1,29 @@
 'use client';
 
-import { useState } from 'react';
-import { Moon, Palette, Sun } from 'lucide-react';
-import { PALETAS, useTheme } from './ThemeProvider';
+import { Moon, Sun } from 'lucide-react';
+import { TAMANOS, useTheme } from './ThemeProvider';
 
-export default function ThemeSelector() {
-  const [open, setOpen] = useState(false);
-  const { paleta, modo, setPaleta, toggleModo } = useTheme();
+const TAM_PX: Record<string, number> = { s: 11, m: 13, l: 15, xl: 17 };
+
+/** Controles de modo claro/oscuro y tamaño de letra (pie de la barra lateral). */
+export default function ThemeSelector({ compacto = false }: { compacto?: boolean }) {
+  const { modo, setModo, tamano, setTamano } = useTheme();
+  const seg = 'flex items-center rounded-[10px] border border-ink-2 p-0.5';
+  const opt = (on: boolean) =>
+    `h-7 min-w-7 px-1.5 rounded-lg grid place-items-center font-semibold transition ${on ? 'bg-ink-2 text-white' : 'text-ink-muted hover:text-ink-fg'}`;
 
   return (
-    <div className="relative">
-      <div className="flex items-center gap-1">
-        <button onClick={toggleModo} className="btn-ghost p-2" title={modo === 'light' ? 'Modo oscuro' : 'Modo claro'}>
-          {modo === 'light' ? <Moon size={16} /> : <Sun size={16} />}
-        </button>
-        <button onClick={() => setOpen((o) => !o)} className="btn-ghost p-2" title="Paleta de colores">
-          <Palette size={16} />
-        </button>
+    <div className={`flex ${compacto ? 'flex-col' : ''} gap-2`}>
+      <div className={seg} role="group" aria-label="Modo de color">
+        <button className={opt(modo === 'light')} onClick={() => setModo('light')} title="Modo claro" aria-pressed={modo === 'light'}><Sun size={15} /></button>
+        <button className={opt(modo === 'dark')} onClick={() => setModo('dark')} title="Modo oscuro" aria-pressed={modo === 'dark'}><Moon size={15} /></button>
       </div>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 mt-2 w-64 card p-2 z-40">
-            <div className="px-2 py-1.5 text-xs text-muted uppercase tracking-wide">Paleta</div>
-            {PALETAS.map((p) => (
-              <button
-                key={p.id}
-                onClick={() => { setPaleta(p.id); setOpen(false); }}
-                className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between gap-2 hover:bg-surface-2 ${paleta === p.id ? 'bg-surface-2' : ''}`}
-              >
-                <div>
-                  <div className="font-medium">{p.nombre}</div>
-                  <div className="text-xs text-muted">{p.desc}</div>
-                </div>
-                {paleta === p.id && <div className="w-2 h-2 rounded-full bg-primary" />}
-              </button>
-            ))}
-          </div>
-        </>
+      {!compacto && (
+        <div className={seg} role="group" aria-label="Tamaño de letra">
+          {TAMANOS.map((t) => (
+            <button key={t} className={opt(tamano === t)} style={{ fontSize: TAM_PX[t] }} onClick={() => setTamano(t)} title={`Letra ${t.toUpperCase()}`} aria-pressed={tamano === t}>A</button>
+          ))}
+        </div>
       )}
     </div>
   );

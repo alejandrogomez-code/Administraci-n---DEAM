@@ -6,6 +6,8 @@ import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
+import { confirmar, pedirTexto } from '@/components/feedback';
+import { Cargando } from '@/components/Cargando';
 
 type Categoria = {
   id: string;
@@ -47,7 +49,7 @@ export default function CategoriasPage() {
   }
 
   async function eliminar(c: Categoria) {
-    if (!confirm(`Eliminar "${c.nombre}"?`)) return;
+    if (!(await confirmar(`Eliminar "${c.nombre}"?`))) return;
     await supabase.from('categorias').delete().eq('id', c.id);
     load();
   }
@@ -58,7 +60,7 @@ export default function CategoriasPage() {
   }
 
   async function agregarTipo() {
-    const t = prompt('Nombre del nuevo tipo (ej: proveedor, banco):');
+    const t = (await pedirTexto('Nombre del nuevo tipo (ej: proveedor, banco):'));
     if (!t) return;
     setTipoSel(t.trim());
   }
@@ -70,7 +72,7 @@ export default function CategoriasPage() {
         subtitulo="Etiquetas para clasificar instructivos, tareas de cierre y otros ítems"
         actions={<Link href="/configuracion" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>}
       />
-      <div className="p-6 max-w-3xl space-y-4">
+      <div className="px-4 sm:px-6 py-5 max-w-3xl space-y-4">
         <div className="card p-4">
           <div className="flex items-end gap-2 flex-wrap">
             <div>
@@ -100,7 +102,7 @@ export default function CategoriasPage() {
 
         <div className="card overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-muted">Cargando...</div>
+            <Cargando filas={5} />
           ) : filtradas.length === 0 ? (
             <div className="p-10 text-center text-muted text-sm">Sin categorías en este tipo todavía.</div>
           ) : (

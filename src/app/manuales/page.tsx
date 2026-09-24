@@ -6,6 +6,8 @@ import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFechaHora } from '@/lib/format';
+import { avisar, confirmar } from '@/components/feedback';
+import { Cargando } from '@/components/Cargando';
 
 type Manual = {
   id: string;
@@ -45,7 +47,7 @@ export default function ManualesPage() {
 
   async function guardar(file?: File | null) {
     if (!editing) return;
-    if (!editing.titulo.trim()) { alert('El título es obligatorio.'); return; }
+    if (!editing.titulo.trim()) { avisar('El título es obligatorio.'); return; }
     setBusy(true);
     try {
       let archivo_url = editing.archivo_url;
@@ -76,14 +78,14 @@ export default function ManualesPage() {
       setEditing(null);
       await load();
     } catch (err: any) {
-      alert(err.message ?? 'Error al guardar.');
+      avisar(err.message ?? 'Error al guardar.');
     } finally {
       setBusy(false);
     }
   }
 
   async function eliminar(m: Manual) {
-    if (!confirm(`¿Eliminar "${m.titulo}"? También se eliminará el archivo adjunto si existe.`)) return;
+    if (!(await confirmar(`¿Eliminar "${m.titulo}"? También se eliminará el archivo adjunto si existe.`))) return;
     if (m.archivo_url) {
       await supabase.storage.from('manual-files').remove([m.archivo_url]);
     }
@@ -94,7 +96,7 @@ export default function ManualesPage() {
   async function descargar(m: Manual) {
     if (!m.archivo_url) return;
     const { data, error } = await supabase.storage.from('manual-files').createSignedUrl(m.archivo_url, 60);
-    if (error || !data?.signedUrl) { alert('No se pudo generar el enlace.'); return; }
+    if (error || !data?.signedUrl) { avisar('No se pudo generar el enlace.'); return; }
     const a = document.createElement('a');
     a.href = data.signedUrl;
     a.download = m.archivo_nombre ?? 'archivo';
@@ -125,7 +127,7 @@ export default function ManualesPage() {
         subtitulo="Documentación, instructivos y enlaces de capacitación"
         actions={<button onClick={nuevo} className="btn-primary"><Plus size={14}/> Nuevo</button>}
       />
-      <div className="p-6">
+      <div className="px-4 sm:px-6 py-5">
         <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between gap-2 flex-wrap">
             <div className="text-sm">{filtrados.length} ítem{filtrados.length === 1 ? '' : 's'}</div>
@@ -136,7 +138,7 @@ export default function ManualesPage() {
           </div>
 
           {loading ? (
-            <div className="p-10 text-center text-muted">Cargando...</div>
+            <Cargando filas={5} />
           ) : filtrados.length === 0 ? (
             <div className="p-10 text-center text-muted text-sm">
               {items.length === 0 ? <>No hay manuales todavía. <button className="text-primary" onClick={nuevo}>Agregar el primero</button>.</> : 'Sin resultados para esa búsqueda.'}
@@ -177,10 +179,10 @@ export default function ManualesPage() {
                       </td>
                       <td className="text-xs max-w-xs whitespace-pre-wrap">{m.observaciones ?? '—'}</td>
                       <td className="text-xs text-muted whitespace-nowrap">{fmtFechaHora(m.updated_at)}</td>
-                      <td className="flex gap-3 text-xs whitespace-nowrap">
+                      <td><div className="flex gap-3 text-xs whitespace-nowrap">
                         <button className="text-primary" onClick={() => setEditing(m)}>Editar</button>
                         <button className="text-danger" onClick={() => eliminar(m)}><Trash2 size={12} className="inline"/></button>
-                      </td>
+                      </div></td>
                     </tr>
                   ))}
                 </tbody>

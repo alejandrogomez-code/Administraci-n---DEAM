@@ -9,6 +9,8 @@ import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFecha, fmtMoney } from '@/lib/format';
 import * as XLSX from 'xlsx';
+import { avisar, confirmar } from '@/components/feedback';
+import { CargandoPagina } from '@/components/Cargando';
 
 type Control = {
   id: string;
@@ -103,7 +105,7 @@ export default function IvaDetallePage() {
 
   async function eliminarControl() {
     if (!control) return;
-    if (!confirm(`¿Eliminar el control de IVA del período ${control.periodo}?\n\nSe eliminarán también todos los resultados del cruce y los archivos originales adjuntos. No se puede deshacer.`)) return;
+    if (!(await confirmar(`¿Eliminar el control de IVA del período ${control.periodo}?\n\nSe eliminarán también todos los resultados del cruce y los archivos originales adjuntos. No se puede deshacer.`))) return;
     try {
       const paths = [control.archivo_afip_url, control.archivo_sap_url].filter((p): p is string => !!p);
       if (paths.length) {
@@ -114,14 +116,14 @@ export default function IvaDetallePage() {
       if (error) throw error;
       router.push('/contabilidad/iva');
     } catch (err: any) {
-      alert(err.message ?? 'Error al eliminar.');
+      avisar(err.message ?? 'Error al eliminar.');
     }
   }
 
   async function descargarArchivo(url: string | null, nombre: string | null) {
     if (!url) return;
     const { data, error } = await supabase.storage.from('iva-files').createSignedUrl(url, 60);
-    if (error || !data?.signedUrl) { alert('No se pudo generar el enlace de descarga.'); return; }
+    if (error || !data?.signedUrl) { avisar('No se pudo generar el enlace de descarga.'); return; }
     const a = document.createElement('a');
     a.href = data.signedUrl;
     a.download = nombre ?? 'archivo.xlsx';
@@ -152,7 +154,7 @@ export default function IvaDetallePage() {
     XLSX.writeFile(wb, `Cruce_IVA_${control?.periodo ?? id}.xlsx`);
   }
 
-  if (loading) return <AppShell><TopBar titulo="Cargando..." /></AppShell>;
+  if (loading) return <AppShell><CargandoPagina /></AppShell>;
   if (!control) return <AppShell><TopBar titulo="No encontrado" /></AppShell>;
 
   return (
@@ -166,7 +168,7 @@ export default function IvaDetallePage() {
           <button onClick={eliminarControl} className="btn-ghost text-danger text-sm"><Trash2 size={14}/> Eliminar</button>
         </>}
       />
-      <div className="p-6 space-y-6">
+      <div className="px-4 sm:px-6 py-5 space-y-6">
         {/* KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <Kpi label="OK exactos" value={control.total_coincidencias} tone="success" />
@@ -185,7 +187,7 @@ export default function IvaDetallePage() {
 
         {/* archivos originales */}
         <div className="card p-4 flex flex-wrap items-center gap-3 text-sm">
-          <span className="text-xs text-muted uppercase tracking-wide">Archivos originales:</span>
+          <span className="text-xs text-muted">Archivos originales:</span>
           {control.archivo_afip_url && (
             <button onClick={() => descargarArchivo(control.archivo_afip_url, control.archivo_afip_nombre)} className="btn-ghost text-sm">
               <Download size={14}/> {control.archivo_afip_nombre ?? 'ARCA'}

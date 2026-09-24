@@ -43,3 +43,14 @@ export function periodoToParts(p: string): { mes: number; anio: number } | null 
 export function partsToPeriodo(mes: number, anio: number): string {
   return `${anio}-${String(mes).padStart(2, '0')}`;
 }
+
+/** Importe abreviado: $ 38,4 M · $ 950 mil · $ 1.200 */
+export function fmtMoneyCorto(n: number | null | undefined): string {
+  if (n === null || n === undefined || isNaN(Number(n))) return '-';
+  const v = Number(n);
+  const f = (x: number, d: number) => new Intl.NumberFormat('es-AR', { maximumFractionDigits: d }).format(x);
+  if (Math.abs(v) >= 1e9) return `$ ${f(v / 1e9, 1)} mil M`;
+  if (Math.abs(v) >= 1e6) return `$ ${f(v / 1e6, 1)} M`;
+  if (Math.abs(v) >= 1e4) return `$ ${f(v / 1e3, 0)} mil`;
+  return `$ ${f(v, 0)}`;
+}

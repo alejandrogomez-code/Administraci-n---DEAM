@@ -16,7 +16,7 @@ export default function ConfigPage() {
   return (
     <AppShell>
       <TopBar titulo="Configuración" subtitulo="Ajustes generales del sistema" />
-      <div className="p-6 max-w-4xl">
+      <div className="px-4 sm:px-6 py-5 max-w-4xl">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {items.map((it) => {
             const Icon = it.icon;

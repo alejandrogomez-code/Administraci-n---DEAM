@@ -18,9 +18,9 @@ export default function TesoreriaPage() {
   return (
     <AppShell>
       <TopBar titulo="Tesorería" subtitulo="Operaciones de tesorería y flujo de caja" />
-      <div className="p-6 max-w-4xl space-y-6">
+      <div className="px-4 sm:px-6 py-5 max-w-4xl space-y-6">
         <div>
-          <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Módulos disponibles</h2>
+          <h2 className="text-sm font-medium text-muted mb-3">Módulos disponibles</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {disponibles.map((d) => {
               const Icon = d.icon;
@@ -50,7 +50,7 @@ export default function TesoreriaPage() {
         </div>
 
         <div>
-          <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">En construcción</h2>
+          <h2 className="text-sm font-medium text-muted mb-3">En construcción</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             {proximamente.map((p) => {
               const Icon = p.icon;

@@ -33,7 +33,7 @@ export default async function AccesosDirectosPage() {
         subtitulo="Enlaces rápidos a sistemas externos y recursos"
         actions={<Link href="/configuracion/accesos-directos" className="btn-ghost text-sm">Gestionar</Link>}
       />
-      <div className="p-6 max-w-6xl">
+      <div className="px-4 sm:px-6 py-5 max-w-6xl">
         {items.length === 0 ? (
           <div className="card p-10 text-center">
             <Sparkles className="mx-auto text-muted mb-3" size={32} />

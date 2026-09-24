@@ -104,7 +104,7 @@ export default function NuevoCierrePage() {
         subtitulo={`${nombreMes(mes)} ${anio}`}
         actions={<Link href="/contabilidad/cierres" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>}
       />
-      <div className="p-6 max-w-3xl space-y-6">
+      <div className="px-4 sm:px-6 py-5 max-w-3xl space-y-6">
         <div className="card p-5 space-y-4">
           <h3 className="font-medium">Período a cerrar</h3>
           <div className="grid grid-cols-2 gap-3">

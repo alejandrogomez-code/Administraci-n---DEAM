@@ -11,6 +11,8 @@ import ProgressBar from '@/components/ProgressBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFecha } from '@/lib/format';
 import { adjuntosDelGestor, descargarAdjunto } from '@/lib/auditoria/adjuntos';
+import { avisar, confirmar } from '@/components/feedback';
+import { CargandoPagina } from '@/components/Cargando';
 
 type Task = {
   id: string;
@@ -172,18 +174,18 @@ export default function TrimestreDetallePage() {
   }
 
   async function eliminarTarea(t: Task) {
-    if (!confirm(`¿Eliminar la tarea "${t.nombre}"?`)) return;
+    if (!(await confirmar(`¿Eliminar la tarea "${t.nombre}"?`))) return;
     await supabase.from('audit_trimestre_tasks').delete().eq('id', t.id);
     load();
   }
 
   async function eliminarTrimestre() {
-    if (!confirm('¿Eliminar este trimestre y todas sus tareas y adjuntos? No se puede deshacer.')) return;
+    if (!(await confirmar('¿Eliminar este trimestre y todas sus tareas y adjuntos? No se puede deshacer.'))) return;
     await supabase.from('audit_trimestres').delete().eq('id', id);
     router.push('/contabilidad/auditoria');
   }
 
-  if (loading) return <AppShell><TopBar titulo="Cargando..." /></AppShell>;
+  if (loading) return <AppShell><CargandoPagina /></AppShell>;
   if (!trimestreObj) return <AppShell><TopBar titulo="No encontrado" /></AppShell>;
 
   const respPrincipal = miembros.find((m) => m.id === trimestreObj.responsable_principal)?.nombre;
@@ -195,7 +197,7 @@ export default function TrimestreDetallePage() {
         subtitulo={`${trimestreObj.auditor_externo ? trimestreObj.auditor_externo + ' • ' : ''}Fecha estimada: ${fmtFecha(trimestreObj.fecha_estimada_cierre)} • ${completadas}/${total} tareas${respPrincipal ? ' • Responsable: ' + respPrincipal : ''}`}
         actions={<Link href="/contabilidad/auditoria" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>}
       />
-      <div className="p-6 space-y-6">
+      <div className="px-4 sm:px-6 py-5 space-y-6">
         <div className="card p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -238,7 +240,7 @@ export default function TrimestreDetallePage() {
                 <col className="w-28" />
               </colgroup>
               <thead>
-                <tr className="text-xs uppercase tracking-wide text-muted">
+                <tr className="text-xs text-muted">
                   <th className="text-left px-3 py-2">#</th>
                   <th className="text-left px-3 py-2">Tarea</th>
                   <th className="text-left px-3 py-2">Responsable</th>
@@ -253,7 +255,7 @@ export default function TrimestreDetallePage() {
               {gruposTareas.map((g) => (
                 <tbody key={g.rubro}>
                   <tr>
-                    <td colSpan={9} className="px-4 py-2 text-xs uppercase tracking-wide text-primary font-semibold bg-surface-2 border-y border-border">
+                    <td colSpan={9} className="px-4 py-2 text-xs text-primary font-semibold bg-surface-2 border-y border-border">
                       {g.rubro || 'Sin rubro'} · {g.items.length} tarea{g.items.length === 1 ? '' : 's'}
                     </td>
                   </tr>
@@ -444,7 +446,7 @@ function AdjuntosModal({ taskId, task, onClose }: {
       if (error) throw error;
       setAdjuntos((arr) => [...arr, data as any]);
     } catch (e: any) {
-      alert(e.message ?? 'Error al subir.');
+      avisar(e.message ?? 'Error al subir.');
     } finally {
       setUploading(false);
     }
@@ -452,11 +454,11 @@ function AdjuntosModal({ taskId, task, onClose }: {
 
   async function descargar(a: Adjunto) {
     const r = await descargarAdjunto(a.archivo_url, a.archivo_nombre, a.origen ?? 'auditoria');
-    if (!r.ok) alert(`No se pudo descargar el archivo: ${r.error}`);
+    if (!r.ok) avisar(`No se pudo descargar el archivo: ${r.error}`);
   }
 
   async function eliminar(a: Adjunto) {
-    if (!confirm(`¿Eliminar "${a.archivo_nombre}"?`)) return;
+    if (!(await confirmar(`¿Eliminar "${a.archivo_nombre}"?`))) return;
     await supabase.storage.from('audit-files').remove([a.archivo_url]);
     await supabase.from('audit_task_attachments').delete().eq('id', a.id);
     setAdjuntos((arr) => arr.filter((x) => x.id !== a.id));
@@ -474,7 +476,7 @@ function AdjuntosModal({ taskId, task, onClose }: {
         </div>
 
         {loading ? (
-          <div className="p-6 text-center text-muted"><Loader2 className="animate-spin inline" size={16}/></div>
+          <div className="px-4 sm:px-6 py-5 text-center text-muted"><Loader2 className="animate-spin inline" size={16}/></div>
         ) : (
           <div className="space-y-1 mb-3">
             {adjuntos.length === 0 && (

@@ -73,7 +73,7 @@ export default function SolicitudIAPage() {
       <div className="w-full max-w-2xl">
         {/* Encabezado */}
         <div className="flex items-center gap-3 mb-6">
-          <div className="w-10 h-10 rounded bg-primary text-primary-fg flex items-center justify-center font-bold shrink-0">D</div>
+          <div className="w-10 h-10 rounded-xl bg-ink text-white grid place-items-center font-bold shrink-0">AD</div>
           <div className="leading-tight">
             <div className="font-semibold">DEAM SRL</div>
             <div className="text-xs text-muted">Requerimientos de Sistemas: IA</div>

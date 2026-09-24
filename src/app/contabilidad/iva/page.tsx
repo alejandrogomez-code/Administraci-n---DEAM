@@ -7,6 +7,8 @@ import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFechaHora, fmtMoney } from '@/lib/format';
+import { avisar, confirmar } from '@/components/feedback';
+import { Cargando } from '@/components/Cargando';
 
 type IvaControl = {
   id: string;
@@ -40,7 +42,7 @@ export default function IvaListPage() {
   useEffect(() => { load(); }, []);
 
   async function eliminar(c: IvaControl) {
-    if (!confirm(`¿Eliminar el control de IVA del período ${c.periodo}?\n\nSe eliminarán también todos los resultados del cruce y los archivos originales adjuntos. No se puede deshacer.`)) return;
+    if (!(await confirmar(`¿Eliminar el control de IVA del período ${c.periodo}?\n\nSe eliminarán también todos los resultados del cruce y los archivos originales adjuntos. No se puede deshacer.`))) return;
     setDeletingId(c.id);
     try {
       // borrar archivos de Storage
@@ -54,7 +56,7 @@ export default function IvaListPage() {
       if (error) throw error;
       setItems((arr) => arr.filter((x) => x.id !== c.id));
     } catch (err: any) {
-      alert(err.message ?? 'Error al eliminar.');
+      avisar(err.message ?? 'Error al eliminar.');
     } finally {
       setDeletingId(null);
     }
@@ -67,14 +69,14 @@ export default function IvaListPage() {
         subtitulo="Cruce de comprobantes ARCA vs SAP"
         actions={<Link href="/contabilidad/iva/nuevo" className="btn-primary"><Plus size={16}/> Nuevo control</Link>}
       />
-      <div className="p-6">
+      <div className="px-4 sm:px-6 py-5">
         <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <div className="text-sm font-medium">Controles registrados</div>
             <button onClick={load} className="btn-ghost text-sm"><RefreshCcw size={14}/> Refrescar</button>
           </div>
           {loading ? (
-            <div className="p-10 text-center text-muted">Cargando...</div>
+            <Cargando filas={5} />
           ) : items.length === 0 ? (
             <div className="p-10 text-center text-muted">
               No hay controles. <Link className="text-primary" href="/contabilidad/iva/nuevo">Crear el primero</Link>.

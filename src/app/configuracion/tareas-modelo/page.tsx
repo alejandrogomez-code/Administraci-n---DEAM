@@ -6,6 +6,8 @@ import { ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
+import { avisar, confirmar } from '@/components/feedback';
+import { Cargando } from '@/components/Cargando';
 
 type Template = {
   id: string;
@@ -47,7 +49,7 @@ export default function TareasModeloPage() {
 
   async function guardar() {
     if (!editing) return;
-    if (!editing.nombre.trim()) { alert('El nombre es obligatorio.'); return; }
+    if (!editing.nombre.trim()) { avisar('El nombre es obligatorio.'); return; }
     const payload = {
       orden: editing.orden,
       nombre: editing.nombre,
@@ -67,7 +69,7 @@ export default function TareasModeloPage() {
   }
 
   async function eliminar(t: Template) {
-    if (!confirm(`Eliminar la tarea modelo "${t.nombre}"?`)) return;
+    if (!(await confirmar(`Eliminar la tarea modelo "${t.nombre}"?`))) return;
     await supabase.from('closing_task_templates').delete().eq('id', t.id);
     load();
   }
@@ -82,10 +84,10 @@ export default function TareasModeloPage() {
           <button onClick={nuevo} className="btn-primary"><Plus size={14}/> Nueva</button>
         </>}
       />
-      <div className="p-6">
+      <div className="px-4 sm:px-6 py-5">
         <div className="card overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-muted">Cargando...</div>
+            <Cargando filas={5} />
           ) : (
             <table className="tbl">
               <thead>
@@ -113,10 +115,10 @@ export default function TareasModeloPage() {
                       <td className="text-sm">{t.dia_objetivo_1 ?? '-'}</td>
                       <td className="text-sm">{t.dia_objetivo_2 ?? '-'}</td>
                       <td>{t.activo ? '✓' : '—'}</td>
-                      <td className="flex gap-3 text-xs">
+                      <td><div className="flex gap-3 text-xs">
                         <button className="text-primary" onClick={() => setEditing(t)}>Editar</button>
                         <button className="text-danger" onClick={() => eliminar(t)}><Trash2 size={12} className="inline"/></button>
-                      </td>
+                      </div></td>
                     </tr>
                   );
                 })}

@@ -4,166 +4,177 @@ import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import {
-  BookOpen, Building2, ChevronDown, ChevronLeft, ChevronRight,
-  ClipboardCheck, FileSpreadsheet, FileText, LayoutDashboard, ListChecks, LogOut,
-  Settings, Wallet, Banknote, Receipt, Zap, TrendingUp, Bot, FolderOpen, ShieldCheck,
+  BookOpen, Bot, CalendarDays, ChevronDown, ChevronsLeft, ChevronsRight, ClipboardCheck, FileText,
+  FolderOpen, Home, Landmark, ListChecks, LogOut, Receipt, Settings, ShieldCheck, SquareCheckBig,
+  TrendingUp, Wallet, Zap,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import { limpiarSesion, useResumen, useSesion } from '@/lib/sesion';
+import type { Modulo } from '@/lib/agenda';
+import ThemeSelector from './ThemeSelector';
 
-type Item = { href: string; label: string; icon: any; children?: Item[]; soloAdmin?: boolean };
+type Item = {
+  href: string;
+  label: string;
+  icon: any;
+  children?: { href: string; label: string; icon: any }[];
+  soloAdmin?: boolean;
+  contador?: Modulo;
+};
 
-const items: Item[] = [
-  { href: '/tareas',    label: 'Gestor de tareas', icon: ListChecks },
-  { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
+const GENERAL: Item[] = [
+  { href: '/dashboard', label: 'Inicio', icon: Home },
+  { href: '/tareas', label: 'Gestor de tareas', icon: SquareCheckBig, contador: 'Tareas' },
+  { href: '/calendario', label: 'Calendario', icon: CalendarDays },
+  { href: '/revision-semanal', label: 'Revisión semanal', icon: ListChecks },
   { href: '/accesos-directos', label: 'Accesos directos', icon: Zap },
+];
+
+const MODULOS: Item[] = [
   {
-    href: '/contabilidad',
-    label: 'Contabilidad',
-    icon: FileSpreadsheet,
+    href: '/contabilidad', label: 'Contabilidad', icon: FileText, contador: 'Contabilidad',
     children: [
-      { href: '/contabilidad/cierres',   label: 'Cierres del mes',     icon: FileText },
-      { href: '/contabilidad/iva',       label: 'Control de IVA',      icon: Wallet },
+      { href: '/contabilidad/cierres', label: 'Cierres del mes', icon: FileText },
+      { href: '/contabilidad/iva', label: 'Control de IVA', icon: Wallet },
       { href: '/contabilidad/auditoria', label: 'Auditoría trimestral', icon: ClipboardCheck },
     ],
   },
   {
-    href: '/repositorio',
-    label: 'Repositorio',
-    icon: FolderOpen,
-    children: [
-      { href: '/repositorio/polizas', label: 'Gestión de Pólizas', icon: ShieldCheck },
-    ],
+    href: '/tesoreria', label: 'Tesorería', icon: Landmark, contador: 'Tesorería',
+    children: [{ href: '/tesoreria/venta-cheques', label: 'Venta de cheques', icon: Receipt }],
   },
   {
-    href: '/tesoreria',
-    label: 'Tesorería',
-    icon: Banknote,
-    children: [
-      { href: '/tesoreria/venta-cheques', label: 'Venta de cheques', icon: Receipt },
-    ],
+    href: '/repositorio', label: 'Repositorio', icon: FolderOpen, contador: 'Repositorio',
+    children: [{ href: '/repositorio/polizas', label: 'Gestión de pólizas', icon: ShieldCheck }],
   },
   { href: '/financiamiento', label: 'Financiamiento', icon: TrendingUp, soloAdmin: true },
   { href: '/requerimientos-ia', label: 'Requerimientos IA', icon: Bot, soloAdmin: true },
-  { href: '/manuales',  label: 'Manuales y Capacitaciones', icon: BookOpen },
-  { href: '/configuracion', label: 'Configuración', icon: Settings },
+  { href: '/manuales', label: 'Manuales', icon: BookOpen },
 ];
 
-export default function Sidebar({ rol }: { rol?: string } = {}) {
-  const path = usePathname();
+const CONFIG: Item = { href: '/configuracion', label: 'Configuración', icon: Settings };
+
+export default function Sidebar({ movil = false, onNavegar }: { movil?: boolean; onNavegar?: () => void }) {
+  const path = usePathname() ?? '';
   const router = useRouter();
-  const [collapsed, setCollapsed] = useState(false);
-  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
-
-  const visibleItems = items.filter((it) => !it.soloAdmin || rol === 'admin');
+  const sesion = useSesion();
+  const rol = sesion?.rol ?? null;
+  const soloRepo = rol === 'ventas';
+  const resumen = useResumen(!!sesion && !soloRepo);
+  const [colapsada, setColapsada] = useState(false);
+  const [abiertos, setAbiertos] = useState<Record<string, boolean>>({});
+  const col = colapsada && !movil;
 
   useEffect(() => {
-    setCollapsed(localStorage.getItem('deam.sidebar') === '1');
-    const raw = localStorage.getItem('deam.sidebar.exp');
-    if (raw) try { setExpanded(JSON.parse(raw)); } catch {}
+    try {
+      setColapsada(localStorage.getItem('deam.sidebar') === '1');
+      const raw = localStorage.getItem('deam.sidebar.exp');
+      if (raw) setAbiertos(JSON.parse(raw));
+    } catch {}
   }, []);
-  useEffect(() => { localStorage.setItem('deam.sidebar', collapsed ? '1' : '0'); }, [collapsed]);
-  useEffect(() => { localStorage.setItem('deam.sidebar.exp', JSON.stringify(expanded)); }, [expanded]);
 
-  useEffect(() => {
-    const auto: Record<string, boolean> = { ...expanded };
-    let changed = false;
-    for (const it of items) {
-      if (it.children && it.children.some((c) => path.startsWith(c.href))) {
-        if (!auto[it.href]) { auto[it.href] = true; changed = true; }
-      }
-    }
-    if (changed) setExpanded(auto);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path]);
+  function guardar(k: string, v: string) { try { localStorage.setItem(k, v); } catch {} }
+  function toggleColapsar() { setColapsada((c) => { guardar('deam.sidebar', c ? '0' : '1'); return !c; }); }
+  function toggleGrupo(href: string, abierto: boolean) {
+    setAbiertos((s) => { const n = { ...s, [href]: !abierto }; guardar('deam.sidebar.exp', JSON.stringify(n)); return n; });
+  }
 
-  async function logout() {
-    const supabase = createClient();
-    await supabase.auth.signOut();
+  async function salir() {
+    await createClient().auth.signOut();
+    limpiarSesion();
     router.push('/login');
   }
 
-  function isActive(href: string) {
-    if (href === '/dashboard') return path === href;
-    return path === href || path.startsWith(href + '/');
+  const activo = (href: string) => (href === '/dashboard' ? path === href : path === href || path.startsWith(href + '/'));
+  const visible = (it: Item) => (!it.soloAdmin || rol === 'admin') && (!soloRepo || it.href === '/repositorio');
+  const contador = (it: Item) => (it.contador && resumen ? resumen.porModulo[it.contador] : 0);
+
+  const base = 'flex items-center gap-3 rounded-[10px] transition';
+  const claseItem = (on: boolean) =>
+    `${base} ${col ? 'justify-center h-10 w-10 mx-auto' : 'px-3 py-2'} ${on ? 'bg-ink-2 text-white font-semibold' : 'text-ink-fg/90 hover:bg-white/5 hover:text-white'}`;
+
+  function Badge({ n }: { n: number }) {
+    if (!n) return null;
+    return col
+      ? <span className="absolute -top-0.5 -right-0.5 min-w-4 h-4 px-1 rounded-full bg-cta text-cta-fg text-[10px] font-bold grid place-items-center">{n}</span>
+      : <span className="ml-auto text-[0.72rem] font-bold bg-cta text-cta-fg rounded-md px-1.5 py-px tabular" title={`${n} vencidos`}>{n}</span>;
   }
 
+  function renderItem(it: Item) {
+    const Icon = it.icon;
+    const on = activo(it.href);
+    const n = contador(it);
+    const tieneHijos = !!it.children?.length && !col;
+    if (!tieneHijos) {
+      return (
+        <Link key={it.href} href={it.href} onClick={onNavegar} className={`${claseItem(on)} relative`} title={col ? it.label : undefined} aria-current={on ? 'page' : undefined}>
+          <Icon size={18} className="shrink-0" />
+          {!col && <span className="truncate">{it.label}</span>}
+          <Badge n={n} />
+        </Link>
+      );
+    }
+    const abierto = abiertos[it.href] ?? on;
+    return (
+      <div key={it.href}>
+        <button onClick={() => toggleGrupo(it.href, abierto)} className={`${base} w-full px-3 py-2 ${on ? 'text-white font-semibold' : 'text-ink-fg/90 hover:bg-white/5 hover:text-white'}`} aria-expanded={abierto}>
+          <Icon size={18} className="shrink-0" />
+          <span className="truncate">{it.label}</span>
+          <Badge n={n} />
+          <ChevronDown size={15} className={`shrink-0 text-ink-muted transition-transform ${n ? '' : 'ml-auto'} ${abierto ? '' : '-rotate-90'}`} />
+        </button>
+        {abierto && (
+          <div className="ml-[1.35rem] mt-0.5 mb-1 border-l border-ink-2 pl-2 space-y-0.5">
+            <Link href={it.href} onClick={onNavegar} className={`block px-3 py-1.5 rounded-lg text-[0.85rem] ${path === it.href ? 'bg-ink-2 text-white font-semibold' : 'text-ink-muted hover:text-white'}`}>Resumen</Link>
+            {it.children!.map((c) => (
+              <Link key={c.href} href={c.href} onClick={onNavegar} className={`block px-3 py-1.5 rounded-lg text-[0.9rem] ${activo(c.href) ? 'bg-ink-2 text-white font-semibold' : 'text-ink-fg/85 hover:text-white'}`}>{c.label}</Link>
+            ))}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  const iniciales = (sesion?.nombre || sesion?.email || '?').split(/[\s.@]+/).filter(Boolean).slice(0, 2).map((s) => s[0]?.toUpperCase()).join('');
+  const usuario = sesion?.email?.split('@')[0] ?? '';
+
   return (
-    <aside className={`${collapsed ? 'w-16' : 'w-60'} shrink-0 border-r border-border bg-surface h-screen sticky top-0 flex flex-col transition-all`}>
-      <div className="h-14 flex items-center gap-2 px-3 border-b border-border">
-        <div className="w-8 h-8 rounded bg-primary text-primary-fg flex items-center justify-center font-bold shrink-0">D</div>
-        {!collapsed && (
-          <div className="leading-tight">
-            <div className="font-semibold text-sm">Administración</div>
-            <div className="text-xs text-muted">DEAM SRL</div>
+    <aside className={`${movil ? 'w-[17.5rem] h-full' : `${col ? 'w-[4.5rem]' : 'w-[16.5rem]'} h-screen sticky top-0 hidden lg:flex`} shrink-0 bg-ink text-ink-fg flex flex-col transition-[width]`}>
+      <div className={`flex items-center gap-3 ${col ? 'justify-center px-2' : 'px-5'} pt-5 pb-4`}>
+        <div className="w-10 h-10 rounded-xl bg-cta text-cta-fg grid place-items-center font-bold shrink-0">AD</div>
+        {!col && (
+          <div className="leading-tight min-w-0">
+            <div className="font-semibold text-white">Administración</div>
+            <div className="text-xs text-ink-muted">DEAM SRL · Finanzas</div>
           </div>
         )}
       </div>
 
-      <nav className="flex-1 p-2 space-y-0.5 overflow-y-auto">
-        {visibleItems.map((it) => {
-          const Icon = it.icon;
-          const active = isActive(it.href);
-          const hasChildren = !!it.children?.length;
-          const isExp = expanded[it.href] ?? active;
-
-          if (hasChildren && !collapsed) {
-            return (
-              <div key={it.href}>
-                <button
-                  onClick={() => setExpanded((s) => ({ ...s, [it.href]: !isExp }))}
-                  className={`w-full flex items-center justify-between gap-3 px-2.5 py-2 rounded text-sm transition ${active ? 'text-primary font-medium' : 'text-text hover:bg-surface-2'}`}
-                >
-                  <span className="flex items-center gap-3 truncate">
-                    <Icon size={18} className="shrink-0" />
-                    <span className="truncate">{it.label}</span>
-                  </span>
-                  <ChevronDown size={14} className={`transition-transform ${isExp ? '' : '-rotate-90'}`} />
-                </button>
-                {isExp && (
-                  <div className="ml-2 mt-0.5 space-y-0.5 border-l border-border pl-2">
-                    <Link href={it.href}
-                      className={`flex items-center gap-3 px-2.5 py-1.5 rounded text-xs transition ${path === it.href ? 'bg-primary/10 text-primary font-medium' : 'text-muted hover:bg-surface-2'}`}
-                    >
-                      Resumen
-                    </Link>
-                    {it.children!.map((c) => {
-                      const CI = c.icon;
-                      const ca = isActive(c.href);
-                      return (
-                        <Link key={c.href} href={c.href}
-                          className={`flex items-center gap-3 px-2.5 py-1.5 rounded text-sm transition ${ca ? 'bg-primary/10 text-primary font-medium' : 'text-text hover:bg-surface-2'}`}
-                        >
-                          <CI size={14} className="shrink-0" />
-                          <span className="truncate">{c.label}</span>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            );
-          }
-
-          return (
-            <Link key={it.href} href={it.href}
-              className={`flex items-center gap-3 px-2.5 py-2 rounded text-sm transition ${active ? 'bg-primary/10 text-primary font-medium' : 'text-text hover:bg-surface-2'}`}
-              title={collapsed ? it.label : undefined}
-            >
-              <Icon size={18} className="shrink-0" />
-              {!collapsed && <span className="truncate">{it.label}</span>}
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-2.5 pb-3 space-y-0.5" aria-label="Principal">
+        {GENERAL.filter(visible).map(renderItem)}
+        {!col && !soloRepo && <div className="text-[0.7rem] font-semibold tracking-wider text-ink-muted px-3 pt-5 pb-1.5">MÓDULOS</div>}
+        {col && <div className="h-4" />}
+        {MODULOS.filter(visible).map(renderItem)}
+        {!soloRepo && <div className="pt-3">{renderItem(CONFIG)}</div>}
       </nav>
 
-      <div className="p-2 border-t border-border space-y-0.5">
-        <button onClick={logout} className="w-full flex items-center gap-3 px-2.5 py-2 rounded text-sm text-text hover:bg-surface-2" title={collapsed ? 'Cerrar sesión' : undefined}>
-          <LogOut size={18} className="shrink-0" />
-          {!collapsed && <span>Cerrar sesión</span>}
-        </button>
-        <button onClick={() => setCollapsed((c) => !c)} className="w-full flex items-center gap-3 px-2.5 py-2 rounded text-sm text-muted hover:bg-surface-2">
-          {collapsed ? <ChevronRight size={18} /> : <><ChevronLeft size={18} /><span>Colapsar</span></>}
-        </button>
+      <div className={`border-t border-ink-2 ${col ? 'px-2 py-3 space-y-3' : 'px-4 py-3.5 space-y-3'}`}>
+        <div className={col ? 'flex justify-center' : ''}><ThemeSelector compacto={col} /></div>
+        <div className={`flex items-center gap-2.5 ${col ? 'flex-col' : ''}`}>
+          <div className="w-9 h-9 rounded-full bg-cta text-cta-fg grid place-items-center text-xs font-bold shrink-0" title={sesion?.email}>{iniciales || '·'}</div>
+          {!col && (
+            <div className="min-w-0 flex-1 leading-tight">
+              <div className="text-sm font-semibold text-white truncate">{usuario || ' '}</div>
+              <div className="text-xs text-ink-muted truncate capitalize">{rol ? rol.replace(/_/g, ' ') : ' '}</div>
+            </div>
+          )}
+          <button onClick={salir} className="p-1.5 rounded-lg text-ink-muted hover:text-white hover:bg-white/5" title="Cerrar sesión" aria-label="Cerrar sesión"><LogOut size={17} /></button>
+        </div>
+        {!movil && (
+          <button onClick={toggleColapsar} className={`flex items-center gap-2 text-xs text-ink-muted hover:text-white ${col ? 'mx-auto' : ''}`} title={col ? 'Expandir menú' : 'Colapsar menú'}>
+            {col ? <ChevronsRight size={16} /> : <><ChevronsLeft size={16} />Colapsar menú</>}
+          </button>
+        )}
       </div>
     </aside>
   );

@@ -10,6 +10,8 @@ import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
 import { exportarSolicitudExcel, exportarSolicitudPDF, exportarListadoExcel, exportarListadoPDF, type SolicitudExport } from '@/lib/reqia/exportar';
+import { avisar, confirmar } from '@/components/feedback';
+import { CargandoPagina } from '@/components/Cargando';
 
 type Estado = 'solicitado' | 'analisis' | 'aprobado' | 'rechazado';
 
@@ -90,8 +92,8 @@ export default function RequerimientosIAPage() {
       supabase.from('req_ia_licencias').select('*')
         .order('fecha', { ascending: false }).order('created_at', { ascending: false }),
     ]);
-    if (e1) alert('Error al cargar solicitudes: ' + e1.message);
-    if (e2) alert('Error al cargar licencias: ' + e2.message);
+    if (e1) avisar('Error al cargar solicitudes: ' + e1.message);
+    if (e2) avisar('Error al cargar licencias: ' + e2.message);
     setRows((sols as any) ?? []);
     setLics((ls as any) ?? []);
     setLoading(false);
@@ -108,18 +110,18 @@ export default function RequerimientosIAPage() {
       origen: 'interno' as const, notas: '',
     };
     const { data, error } = await supabase.from('req_ia').insert(nuevo).select('*').single();
-    if (error) { alert('Error al crear: ' + error.message); return; }
+    if (error) { avisar('Error al crear: ' + error.message); return; }
     setRows(prev => [data as any, ...prev]);
   }
   async function actualizar(id: string, cambios: Partial<ReqIA>) {
     setRows(prev => prev.map(r => r.id === id ? { ...r, ...cambios } as ReqIA : r));
     const { error } = await supabase.from('req_ia').update(cambios).eq('id', id);
-    if (error) alert('Error al guardar: ' + error.message);
+    if (error) avisar('Error al guardar: ' + error.message);
   }
   async function eliminar(id: string) {
-    if (!confirm('¿Eliminar este requerimiento?')) return;
+    if (!(await confirmar('¿Eliminar este requerimiento?'))) return;
     const { error } = await supabase.from('req_ia').delete().eq('id', id);
-    if (error) { alert('Error al eliminar: ' + error.message); return; }
+    if (error) { avisar('Error al eliminar: ' + error.message); return; }
     setRows(prev => prev.filter(r => r.id !== id));
   }
 
@@ -142,25 +144,25 @@ export default function RequerimientosIAPage() {
       revision: false, notas: '',
     };
     const { data, error } = await supabase.from('req_ia_licencias').insert(nueva).select('*').single();
-    if (error) { alert('Error al crear: ' + error.message); return; }
+    if (error) { avisar('Error al crear: ' + error.message); return; }
     setLics(prev => [data as any, ...prev]);
   }
   async function actualizarLic(id: string, cambios: Partial<Licencia>) {
     setLics(prev => prev.map(l => l.id === id ? { ...l, ...cambios } as Licencia : l));
     const { error } = await supabase.from('req_ia_licencias').update(cambios).eq('id', id);
-    if (error) alert('Error al guardar: ' + error.message);
+    if (error) avisar('Error al guardar: ' + error.message);
   }
   async function eliminarLic(id: string) {
-    if (!confirm('¿Eliminar esta licencia?')) return;
+    if (!(await confirmar('¿Eliminar esta licencia?'))) return;
     const { error } = await supabase.from('req_ia_licencias').delete().eq('id', id);
-    if (error) { alert('Error al eliminar: ' + error.message); return; }
+    if (error) { avisar('Error al eliminar: ' + error.message); return; }
     setLics(prev => prev.filter(l => l.id !== id));
   }
 
   function copiarLinkFormulario() {
     const url = `${window.location.origin}/solicitud-ia`;
     navigator.clipboard.writeText(url);
-    alert('Link del formulario copiado:\n' + url);
+    avisar('Link del formulario copiado:\n' + url);
   }
 
   const filtradas = useMemo(() => {
@@ -179,13 +181,13 @@ export default function RequerimientosIAPage() {
     return c;
   }, [rows]);
 
-  if (!ready) return <AppShell><div className="p-10 text-center text-muted">Cargando...</div></AppShell>;
+  if (!ready) return <AppShell><CargandoPagina /></AppShell>;
 
   if (!autorizado) {
     return (
       <AppShell>
         <TopBar titulo="Acceso denegado" />
-        <div className="p-6 max-w-xl">
+        <div className="px-4 sm:px-6 py-5 max-w-xl">
           <div className="card p-6 border-l-4 border-l-danger">
             <div className="flex items-start gap-3">
               <AlertTriangle className="text-danger shrink-0 mt-0.5" size={20} />
@@ -218,7 +220,7 @@ export default function RequerimientosIAPage() {
         }
       />
 
-      <div className="p-6 space-y-4">
+      <div className="px-4 sm:px-6 py-5 space-y-4">
         {/* Pestañas */}
         <div className="flex items-center gap-1 border-b border-border">
           <button

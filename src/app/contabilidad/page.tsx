@@ -11,7 +11,7 @@ export default function ContabilidadPage() {
   return (
     <AppShell>
       <TopBar titulo="Contabilidad" subtitulo="Módulos contables" />
-      <div className="p-6">
+      <div className="px-4 sm:px-6 py-5">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-3xl">
           {items.map((it) => {
             const Icon = it.icon;

@@ -9,6 +9,7 @@ import StatusChip from '@/components/StatusChip';
 import ProgressBar from '@/components/ProgressBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFecha, nombreMes } from '@/lib/format';
+import { Cargando } from '@/components/Cargando';
 
 type Closing = {
   id: string;
@@ -81,7 +82,7 @@ export default function CierresListPage() {
           </Link>
         }
       />
-      <div className="p-6 space-y-6">
+      <div className="px-4 sm:px-6 py-5 space-y-6">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <KpiCard label="Total" value={kpi.total} />
           <KpiCard label="Pendientes" value={kpi.pendientes} tone="warning" />
@@ -103,7 +104,7 @@ export default function CierresListPage() {
           </div>
 
           {loading ? (
-            <div className="p-10 text-center text-muted">Cargando...</div>
+            <Cargando filas={5} />
           ) : filtrados.length === 0 ? (
             <div className="p-10 text-center text-muted">
               No hay cierres aún. <Link className="text-primary" href="/contabilidad/cierres/nuevo">Crear el primero</Link>.

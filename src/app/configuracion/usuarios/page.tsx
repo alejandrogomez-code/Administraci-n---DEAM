@@ -7,6 +7,7 @@ import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFechaHora } from '@/lib/format';
+import { Cargando } from '@/components/Cargando';
 
 type Profile = {
   id: string;
@@ -50,14 +51,14 @@ export default function UsuariosPage() {
         subtitulo={esAdmin ? 'Podés editar nombre, rol y estado' : 'Solo lectura (rol admin requerido para editar)'}
         actions={<Link href="/configuracion" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>}
       />
-      <div className="p-6">
+      <div className="px-4 sm:px-6 py-5">
         <div className="card overflow-hidden">
           <div className="px-4 py-3 border-b border-border flex items-center justify-between">
             <div className="text-sm">{items.length} usuario{items.length === 1 ? '' : 's'}</div>
             <button onClick={load} className="btn-ghost text-sm"><RefreshCcw size={14}/></button>
           </div>
           {loading ? (
-            <div className="p-10 text-center text-muted">Cargando...</div>
+            <Cargando filas={5} />
           ) : (
             <table className="tbl">
               <thead>

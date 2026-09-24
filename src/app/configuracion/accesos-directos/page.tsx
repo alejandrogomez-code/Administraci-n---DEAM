@@ -6,6 +6,8 @@ import { ArrowLeft, ExternalLink, Loader2, Plus, Trash2 } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
+import { avisar, confirmar } from '@/components/feedback';
+import { Cargando } from '@/components/Cargando';
 
 type Acceso = {
   id: string;
@@ -55,8 +57,8 @@ export default function AccesosDirectosConfigPage() {
 
   async function guardar() {
     if (!editing) return;
-    if (!editing.titulo.trim()) { alert('El título es obligatorio.'); return; }
-    if (!editing.url.trim()) { alert('El link es obligatorio.'); return; }
+    if (!editing.titulo.trim()) { avisar('El título es obligatorio.'); return; }
+    if (!editing.url.trim()) { avisar('El link es obligatorio.'); return; }
     let url = editing.url.trim();
     if (!/^https?:\/\//i.test(url) && !url.startsWith('/')) url = 'https://' + url;
     setBusy(true);
@@ -78,14 +80,14 @@ export default function AccesosDirectosConfigPage() {
       setEditing(null);
       load();
     } catch (err: any) {
-      alert(err.message ?? 'Error');
+      avisar(err.message ?? 'Error');
     } finally {
       setBusy(false);
     }
   }
 
   async function eliminar(a: Acceso) {
-    if (!confirm(`¿Eliminar "${a.titulo}"?`)) return;
+    if (!(await confirmar(`¿Eliminar "${a.titulo}"?`))) return;
     await supabase.from('accesos_directos').delete().eq('id', a.id);
     load();
   }
@@ -100,10 +102,10 @@ export default function AccesosDirectosConfigPage() {
           {esAdmin && <button onClick={nuevo} className="btn-primary"><Plus size={14}/> Nuevo</button>}
         </>}
       />
-      <div className="p-6 max-w-4xl space-y-4">
+      <div className="px-4 sm:px-6 py-5 max-w-4xl space-y-4">
         <div className="card overflow-hidden">
           {loading ? (
-            <div className="p-10 text-center text-muted">Cargando...</div>
+            <Cargando filas={5} />
           ) : items.length === 0 ? (
             <div className="p-10 text-center text-muted text-sm">
               {esAdmin ? <>Sin accesos directos. <button className="text-primary" onClick={nuevo}>Crear el primero</button>.</> : 'Sin accesos directos cargados.'}
@@ -136,10 +138,10 @@ export default function AccesosDirectosConfigPage() {
                     <td><span className={`chip bg-${a.color}/15 text-${a.color}`}>{a.color}</span></td>
                     <td>{a.activo ? '✓' : '—'}</td>
                     {esAdmin && (
-                      <td className="flex gap-3 text-xs whitespace-nowrap">
+                      <td><div className="flex gap-3 text-xs whitespace-nowrap">
                         <button className="text-primary" onClick={() => setEditing(a)}>Editar</button>
                         <button className="text-danger" onClick={() => eliminar(a)}><Trash2 size={12} className="inline"/></button>
-                      </td>
+                      </div></td>
                     )}
                   </tr>
                 ))}

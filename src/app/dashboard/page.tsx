@@ -1,121 +1,53 @@
 import Link from 'next/link';
-import { Banknote, BookOpen, ExternalLink, FileSpreadsheet, FileText, Settings, Wallet, Zap } from 'lucide-react';
+import { Check, Plus } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
+import ListaAtencion from '@/components/agenda/ListaAtencion';
 import { createClient } from '@/lib/supabase/server';
+import { cargarAgenda, resumirAgenda } from '@/lib/agenda';
+import { fechaLarga, hoyISO, saludo, sumarDias } from '@/lib/fechas';
+import { cargarDatosInicio } from './_componentes/datos';
+import Indicadores from './_componentes/Indicadores';
+import ResumenModulos from './_componentes/ResumenModulos';
+import { Accesos, ProximasFechas } from './_componentes/Laterales';
 
 export const dynamic = 'force-dynamic';
 
-const COLOR_CLASSES: Record<string, string> = {
-  primary: 'bg-primary/10 text-primary',
-  accent:  'bg-accent/10 text-accent',
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  danger:  'bg-danger/10 text-danger',
-  muted:   'bg-muted/15 text-muted',
-};
-
-const modulos = [
-  { href: '/contabilidad/cierres', label: 'Cierres del mes',  desc: 'Tareas mensuales de cierre contable', icon: FileText,        color: 'bg-primary/10 text-primary' },
-  { href: '/contabilidad/iva',     label: 'Control de IVA',   desc: 'Cruce ARCA vs SAP',                   icon: Wallet,          color: 'bg-accent/10 text-accent' },
-  { href: '/tesoreria/venta-cheques', label: 'Venta de cheques', desc: 'Simulador, propuestas y carga',   icon: Banknote,        color: 'bg-warning/10 text-warning' },
-  { href: '/manuales',             label: 'Manuales',         desc: 'Documentación y capacitaciones',      icon: BookOpen,        color: 'bg-success/10 text-success' },
-  { href: '/contabilidad',         label: 'Contabilidad',     desc: 'Acceso al módulo contable completo',  icon: FileSpreadsheet, color: 'bg-primary/10 text-primary' },
-  { href: '/configuracion',        label: 'Configuración',    desc: 'Usuarios, permisos, equipo y más',    icon: Settings,        color: 'bg-muted/20 text-muted' },
-];
-
-export default async function DashboardPage() {
+export default async function InicioPage() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  let nombre = user?.email ?? '';
-  if (user) {
-    const { data } = await supabase.from('profiles').select('nombre').eq('id', user.id).single();
-    nombre = data?.nombre ?? nombre;
-  }
-
-  const { data: accesos } = await supabase
-    .from('accesos_directos')
-    .select('*')
-    .eq('activo', true)
-    .order('orden')
-    .limit(8);
-
-  const { count: cierresPendientes } = await supabase
-    .from('accounting_closings').select('id', { count: 'exact', head: true }).neq('estado', 'completado');
-  const { count: ivaControles } = await supabase
-    .from('iva_controls').select('id', { count: 'exact', head: true });
-  const { count: manuales } = await supabase
-    .from('manuales').select('id', { count: 'exact', head: true });
+  const hoy = hoyISO();
+  const [agenda, datos] = await Promise.all([cargarAgenda(supabase), cargarDatosInicio(supabase)]);
+  const resumen = resumirAgenda(agenda, hoy);
+  const tareas = agenda.filter((i) => i.origen === 'tarea');
+  const tareasVencidas = tareas.filter((i) => i.fecha && i.fecha < hoy).length;
+  const en30 = sumarDias(hoy, 30);
+  const proximas = agenda.filter((i) => i.fecha && i.fecha > hoy && i.fecha <= en30).slice(0, 6);
 
   return (
     <AppShell>
-      <TopBar titulo={`Bienvenido, ${nombre}`} subtitulo="Panel principal" />
-      <div className="p-6 max-w-7xl space-y-8">
-
-        {(accesos?.length ?? 0) > 0 && (
-          <section>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-sm font-medium text-muted uppercase tracking-wide flex items-center gap-2">
-                <Zap size={14} /> Accesos directos
-              </h2>
-              <Link className="text-xs text-primary" href="/accesos-directos">Ver todos →</Link>
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {accesos!.map((a: any) => (
-                <a key={a.id} href={a.url} target="_blank" rel="noopener noreferrer"
-                  className="card p-4 hover:shadow-card transition group flex items-center gap-3">
-                  <div className={`w-10 h-10 rounded ${COLOR_CLASSES[a.color] ?? COLOR_CLASSES.primary} flex items-center justify-center shrink-0 group-hover:scale-105 transition`}>
-                    <ExternalLink size={18} />
-                  </div>
-                  <div className="min-w-0">
-                    <div className="font-medium text-sm truncate">{a.titulo}</div>
-                    {a.descripcion && <div className="text-xs text-muted truncate">{a.descripcion}</div>}
-                  </div>
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
-
-        <section>
-          <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Módulos</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {modulos.map((m) => {
-              const Icon = m.icon;
-              return (
-                <Link key={m.href} href={m.href} className="card p-5 hover:shadow-card transition group">
-                  <div className={`w-10 h-10 rounded ${m.color} flex items-center justify-center mb-3 group-hover:scale-105 transition`}>
-                    <Icon size={20} />
-                  </div>
-                  <div className="font-medium">{m.label}</div>
-                  <div className="text-xs text-muted mt-1">{m.desc}</div>
-                </Link>
-              );
-            })}
+      <TopBar
+        titulo={saludo()}
+        subtitulo={<>
+          {fechaLarga(hoy)} · {agenda.length} pendientes
+          {resumen.vencidos > 0 && <> · <span className="text-danger font-semibold">{resumen.vencidos} vencidos</span></>}
+        </>}
+        actions={<>
+          <Link href="/revision-semanal" className="btn-secondary"><Check size={16} />Revisión semanal</Link>
+          <Link href="/tareas?nueva=1" className="btn-primary"><Plus size={16} />Nueva tarea</Link>
+        </>}
+      />
+      <div className="px-4 sm:px-6 py-5 space-y-5">
+        <Indicadores tareas={tareas.length} vencidas={tareasVencidas} d={datos} />
+        <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_21rem] gap-5 items-start">
+          <div className="space-y-5 min-w-0">
+            <ListaAtencion items={agenda} hoy={hoy} />
+            <ResumenModulos d={datos} />
           </div>
-        </section>
-
-        <section>
-          <h2 className="text-sm font-medium text-muted mb-3 uppercase tracking-wide">Resumen</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-            <div className="card p-5">
-              <div className="text-xs text-muted">Cierres en curso</div>
-              <div className="text-2xl font-semibold mt-1">{cierresPendientes ?? 0}</div>
-            </div>
-            <div className="card p-5">
-              <div className="text-xs text-muted">Controles de IVA</div>
-              <div className="text-2xl font-semibold mt-1">{ivaControles ?? 0}</div>
-            </div>
-            <div className="card p-5">
-              <div className="text-xs text-muted">Manuales / capacitaciones</div>
-              <div className="text-2xl font-semibold mt-1">{manuales ?? 0}</div>
-            </div>
-            <div className="card p-5">
-              <div className="text-xs text-muted">Usuario activo</div>
-              <div className="text-base font-medium mt-1 truncate">{user?.email}</div>
-            </div>
+          <div className="space-y-5">
+            <ProximasFechas items={proximas} />
+            <Accesos accesos={datos.accesos} />
           </div>
-        </section>
+        </div>
       </div>
     </AppShell>
   );

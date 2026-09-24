@@ -123,7 +123,7 @@ export default function NuevoIvaPage() {
         subtitulo="Cargar archivos y cruzar"
         actions={<Link href="/contabilidad/iva" className="btn-ghost"><ArrowLeft size={14}/> Volver</Link>}
       />
-      <div className="p-6 max-w-3xl space-y-6">
+      <div className="px-4 sm:px-6 py-5 max-w-3xl space-y-6">
         <div className="card p-5 space-y-4">
           <div>
             <label className="text-xs text-muted">Período (YYYY-MM)</label>

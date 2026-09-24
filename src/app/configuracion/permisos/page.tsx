@@ -6,6 +6,8 @@ import { ArrowLeft, Plus } from 'lucide-react';
 import AppShell from '@/components/AppShell';
 import TopBar from '@/components/TopBar';
 import { createClient } from '@/lib/supabase/client';
+import { pedirTexto } from '@/components/feedback';
+import { Cargando } from '@/components/Cargando';
 
 const ROLES = ['admin', 'usuario_admin_1', 'usuario_admin_2', 'usuario_admin_3'];
 const MODULOS_DEFAULT = ['contabilidad.cierres', 'contabilidad.iva', 'configuracion'];
@@ -53,7 +55,7 @@ export default function PermisosPage() {
   const getPerm = (rol: string, modulo: string) => items.find((x) => x.rol === rol && x.modulo === modulo) ?? null;
 
   async function agregarModulo() {
-    const nombre = prompt('Nombre del módulo (ej: contabilidad.libros, instructivos):');
+    const nombre = (await pedirTexto('Nombre del módulo (ej: contabilidad.libros, instructivos):'));
     if (!nombre) return;
     setModulos((m) => Array.from(new Set([...m, nombre.trim()])));
   }
@@ -68,10 +70,10 @@ export default function PermisosPage() {
           {esAdmin && <button onClick={agregarModulo} className="btn-secondary"><Plus size={14}/> Módulo</button>}
         </>}
       />
-      <div className="p-6">
+      <div className="px-4 sm:px-6 py-5">
         <div className="card overflow-x-auto">
           {loading ? (
-            <div className="p-10 text-center text-muted">Cargando...</div>
+            <Cargando filas={5} />
           ) : (
             <table className="tbl min-w-[800px]">
               <thead>

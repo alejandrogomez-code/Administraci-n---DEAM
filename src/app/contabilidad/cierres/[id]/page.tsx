@@ -10,6 +10,8 @@ import StatusChip from '@/components/StatusChip';
 import ProgressBar from '@/components/ProgressBar';
 import { createClient } from '@/lib/supabase/client';
 import { fmtFecha, nombreMes } from '@/lib/format';
+import { avisar, confirmar, pedirTexto } from '@/components/feedback';
+import { CargandoPagina } from '@/components/Cargando';
 
 type Task = {
   id: string;
@@ -104,13 +106,13 @@ export default function CierreDetallePage() {
   }
 
   async function eliminarTarea(t: Task) {
-    if (!confirm(`¿Eliminar la tarea "${t.nombre}"?`)) return;
+    if (!(await confirmar(`¿Eliminar la tarea "${t.nombre}"?`))) return;
     await supabase.from('accounting_closing_tasks').delete().eq('id', t.id);
     load();
   }
 
   async function agregarTarea() {
-    const nombre = prompt('Nombre de la nueva tarea:');
+    const nombre = (await pedirTexto('Nombre de la nueva tarea:'));
     if (!nombre) return;
     const maxOrden = tasks.reduce((m, t) => Math.max(m, t.orden), 0) + 1;
     await supabase.from('accounting_closing_tasks').insert({
@@ -124,10 +126,10 @@ export default function CierreDetallePage() {
     const mp = closing.mes === 1 ? 12 : closing.mes - 1;
     const ap = closing.mes === 1 ? closing.anio - 1 : closing.anio;
     const { data: prev } = await supabase.from('accounting_closings').select('id').eq('mes', mp).eq('anio', ap).maybeSingle();
-    if (!prev) { alert(`No existe cierre de ${nombreMes(mp)} ${ap}.`); return; }
+    if (!prev) { avisar(`No existe cierre de ${nombreMes(mp)} ${ap}.`); return; }
     const { data: prevTasks } = await supabase.from('accounting_closing_tasks').select('*').eq('closing_id', prev.id).order('orden');
-    if (!prevTasks?.length) { alert('El mes anterior no tiene tareas.'); return; }
-    if (!confirm(`Importar ${prevTasks.length} tareas desde ${nombreMes(mp)} ${ap}?`)) return;
+    if (!prevTasks?.length) { avisar('El mes anterior no tiene tareas.'); return; }
+    if (!(await confirmar(`Importar ${prevTasks.length} tareas desde ${nombreMes(mp)} ${ap}?`))) return;
     const nuevas = prevTasks.map((t: any) => ({
       closing_id: id, orden: t.orden, nombre: t.nombre, descripcion: t.descripcion,
       responsable_id: t.responsable_id,
@@ -139,12 +141,12 @@ export default function CierreDetallePage() {
   }
 
   async function eliminarCierre() {
-    if (!confirm('¿Eliminar este cierre y todas sus tareas? No se puede deshacer.')) return;
+    if (!(await confirmar('¿Eliminar este cierre y todas sus tareas? No se puede deshacer.'))) return;
     await supabase.from('accounting_closings').delete().eq('id', id);
     router.push('/contabilidad/cierres');
   }
 
-  if (loading) return <AppShell><TopBar titulo="Cargando..." /></AppShell>;
+  if (loading) return <AppShell><CargandoPagina /></AppShell>;
   if (!closing) return <AppShell><TopBar titulo="No encontrado" /></AppShell>;
 
   const respPrincipal = miembros.find((m) => m.id === closing.responsable_principal)?.nombre;
@@ -160,7 +162,7 @@ export default function CierreDetallePage() {
           <button onClick={agregarTarea} className="btn-primary"><Plus size={14}/> Tarea</button>
         </>}
       />
-      <div className="p-6 space-y-6">
+      <div className="px-4 sm:px-6 py-5 space-y-6">
         <div className="card p-5">
           <div className="flex items-center justify-between gap-4">
             <div>
@@ -236,10 +238,10 @@ export default function CierreDetallePage() {
                         <option value="completado">Completado</option>
                       </select>
                     </td>
-                    <td className="flex gap-3 whitespace-nowrap">
+                    <td><div className="flex gap-3 whitespace-nowrap">
                       <button onClick={() => setEditing(t)} className="text-primary text-xs hover:underline">Editar</button>
                       <button onClick={() => eliminarTarea(t)} className="text-danger text-xs hover:underline">Eliminar</button>
-                    </td>
+                    </div></td>
                   </tr>
                 ))}
               </tbody>
