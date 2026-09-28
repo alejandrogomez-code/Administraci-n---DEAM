@@ -26,17 +26,18 @@ export type Manual = {
   palabras_clave: string | null;
 };
 
-export type TipoRecurso = 'pdf' | 'video' | 'link' | 'archivo';
+export type TipoRecurso = 'pdf' | 'excel' | 'video' | 'link' | 'archivo';
 
 export const TIPO_LABEL: Record<TipoRecurso, string> = {
   pdf: 'PDF',
+  excel: 'Excel',
   video: 'Video',
   link: 'Link',
   archivo: 'Archivo',
 };
 
 /** Tipos que se pueden marcar a mano en el formulario. */
-export const TIPOS_ELEGIBLES: TipoRecurso[] = ['pdf', 'video', 'link'];
+export const TIPOS_ELEGIBLES: TipoRecurso[] = ['pdf', 'excel', 'video', 'link'];
 
 export const SECCION_LABEL: Record<Seccion, string> = {
   odoo: 'Odoo',
@@ -47,6 +48,7 @@ export const BUCKET = 'manual-files';
 
 const LINK_VIDEO = /youtube\.com|youtu\.be|vimeo\.com|loom\.com|\.(mp4|webm|mov)(\?|$)/i;
 const EXT_VIDEO = ['mp4', 'mov', 'webm', 'm4v', 'avi'];
+const EXT_EXCEL = ['xlsx', 'xls', 'xlsm', 'xlsb', 'csv'];
 
 /** Deduce el tipo a partir del archivo y el link (se usa si el manual no tiene tipos cargados). */
 export function deducirTipos(archivoNombre: string | null | undefined, link: string | null | undefined): TipoRecurso[] {
@@ -54,6 +56,7 @@ export function deducirTipos(archivoNombre: string | null | undefined, link: str
   if (archivoNombre) {
     const ext = archivoNombre.split('.').pop()?.toLowerCase() ?? '';
     if (ext === 'pdf') t.push('pdf');
+    else if (EXT_EXCEL.includes(ext)) t.push('excel');
     else if (EXT_VIDEO.includes(ext)) t.push('video');
     else t.push('archivo');
   }

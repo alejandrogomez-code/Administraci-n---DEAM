@@ -16,7 +16,7 @@ import {
   coincide, manualVacio, temasPorModulo, tiposDe,
 } from '../../_componentes/tipos';
 
-const TODOS_LOS_TIPOS: TipoRecurso[] = ['pdf', 'video', 'link', 'archivo'];
+const TODOS_LOS_TIPOS: TipoRecurso[] = ['pdf', 'excel', 'video', 'link', 'archivo'];
 
 export default function ModuloManualesPage() {
   const supabase = createClient();

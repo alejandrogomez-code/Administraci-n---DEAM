@@ -1,12 +1,13 @@
 'use client';
 
-import { ExternalLink, FileText, Link2, Paperclip, PlayCircle, Trash2 } from 'lucide-react';
+import { Download, ExternalLink, FileSpreadsheet, FileText, Link2, Paperclip, PlayCircle, Trash2 } from 'lucide-react';
 import { fmtFecha } from '@/lib/format';
 import { Manual, Modulo, Seccion, TIPO_LABEL, TipoRecurso, tiposDe } from './tipos';
 import { abrir, abrirArchivo, abrirLink, eliminarManual } from './acciones';
 
 const ICONO: Record<TipoRecurso, typeof FileText> = {
   pdf: FileText,
+  excel: FileSpreadsheet,
   video: PlayCircle,
   link: Link2,
   archivo: Paperclip,
@@ -47,6 +48,7 @@ type Props = {
 
 export default function FilaManual({ m, modulo, mostrarModulo, mostrarFecha, onEditar, onEliminado }: Props) {
   const tipos = tiposDe(m);
+  const esPdf = /\.pdf$/i.test(m.archivo_nombre ?? m.archivo_url ?? '');
   const detalle = [
     mostrarModulo && modulo ? modulo.nombre : null,
     m.tema?.trim() || null,
@@ -80,7 +82,9 @@ export default function FilaManual({ m, modulo, mostrarModulo, mostrarFecha, onE
       <div className="flex items-center gap-3 text-xs whitespace-nowrap shrink-0">
         {m.archivo_url && (
           <button onClick={() => abrirArchivo(m)} className="text-primary inline-flex items-center gap-1 hover:underline" title={m.archivo_nombre ?? 'Archivo'}>
-            <FileText size={13} aria-hidden /> Archivo
+            {esPdf
+              ? <><FileText size={13} aria-hidden /> Ver PDF</>
+              : <><Download size={13} aria-hidden /> Descargar</>}
           </button>
         )}
         {m.link && (

@@ -189,7 +189,7 @@ export default function ManualModal({ inicial, modulos, temas, seccionInicial = 
 
           <div className="grid sm:grid-cols-2 gap-3">
             <div>
-              <span className="text-xs text-muted">Archivo</span>
+              <span className="text-xs text-muted">Archivo (PDF, Excel u otro)</span>
               {form.archivo_url ? (
                 <div className="mt-1 flex items-center gap-2 border border-border rounded-[10px] px-3 py-2 text-sm">
                   <FileText size={16} className="shrink-0" />
@@ -199,7 +199,7 @@ export default function ManualModal({ inicial, modulos, temas, seccionInicial = 
               ) : (
                 <label className="mt-1 border-2 border-dashed border-border rounded-[10px] px-3 py-2 text-sm cursor-pointer hover:border-primary flex items-center gap-2 min-h-[42px]">
                   {file ? <FileText size={16} className="text-success shrink-0" /> : <Upload size={16} className="text-muted shrink-0" />}
-                  <span className="truncate">{file ? file.name : 'Seleccionar archivo'}</span>
+                  <span className="truncate">{file ? file.name : 'Seleccionar PDF, Excel…'}</span>
                   <input type="file" className="hidden" onChange={(e) => setFile(e.target.files?.[0] ?? null)} />
                 </label>
               )}
