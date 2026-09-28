@@ -39,3 +39,11 @@ El Inicio, el Calendario y la Revisión semanal leen campos deducidos del códig
 - `accounting_closing_tasks.fecha_estimada_2` se toma como fecha reprogramada (si existe, tiene prioridad sobre `fecha_estimada`).
 - Cheques disponibles = `cheques` sin `propuesta_id` y con vencimiento desde hoy.
 - Pólizas por vencer = `repo_polizas` no finalizadas con vencimiento en los próximos 30 días (45 en la agenda).
+
+## Manuales y Capacitaciones: Odoo separado (septiembre 2026)
+- Nueva portada de `/manuales`: buscador principal (sin tildes, busca en título, descripción, tema y palabras clave), bloque destacado "Guías de Odoo por módulo", manuales internos agrupados por área y "Actualizado recientemente".
+- Nueva pantalla por módulo `/manuales/modulo/[id]`: filtros por tema y tipo, búsqueda dentro del módulo, editar nombre/descripción del módulo.
+- Cada manual muestra si es PDF, Video o Link (se deduce del archivo/link si no se marca a mano).
+- Formulario nuevo: sección (Odoo / interno), módulo o área (se pueden crear desde el mismo desplegable), tema, descripción corta, tipo y palabras clave.
+- Corrección: "Quitar" archivo ya no lo borra de Storage si después se cancela; se borra al guardar.
+- **Hacer a mano:** ejecutar `supabase/migraciones/2026-09_manuales_odoo.sql` en Supabase antes de desplegar. Los manuales existentes aparecen en "Sin clasificar" hasta asignarles un área.
